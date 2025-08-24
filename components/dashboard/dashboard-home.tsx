@@ -110,6 +110,8 @@ export function DashboardHome() {
                   <p className="text-2xl font-bold text-gray-900 dark:text-white">{stat.value}</p>
                 </div>
               </div>
+      return <Users className="h-4 w-4" />
+    default:
             </CardContent>
           </Card>
         ))}

@@ -183,4 +183,91 @@ export function SystemReports() {
                 <CardTitle>User Growth Trend</CardTitle>
               </CardHeader>
               <CardContent>
-                <div\
+                <div className="h-32 flex items-center justify-center text-gray-400 dark:text-gray-500">
+                  {/* Placeholder for chart */}
+                  <span>User growth chart coming soon...</span>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </TabsContent>
+
+        <TabsContent value="classes">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <BookOpen className="h-5 w-5" />
+                Class Performance
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Class Name</TableHead>
+                    <TableHead>Students</TableHead>
+                    <TableHead>Avg Grade</TableHead>
+                    <TableHead>Completion (%)</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {classPerformanceData.map((data, idx) => (
+                    <TableRow key={idx}>
+                      <TableCell className="font-medium">{data.className}</TableCell>
+                      <TableCell>{data.students}</TableCell>
+                      <TableCell>
+                        <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
+                          {data.avgGrade}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
+                          {data.completion}%
+                        </Badge>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="system">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <TrendingUp className="h-5 w-5" />
+                System Health
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Metric</TableHead>
+                    <TableHead>Value</TableHead>
+                    <TableHead>Status</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {systemHealthData.map((data, idx) => (
+                    <TableRow key={idx}>
+                      <TableCell className="font-medium">{data.metric}</TableCell>
+                      <TableCell>{data.value}%</TableCell>
+                      <TableCell>
+                        <span className={`px-2 py-1 rounded text-xs font-semibold ${getStatusColor(data.status)}`}>
+                          {data.status.charAt(0).toUpperCase() + data.status.slice(1)}
+                        </span>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
+    </div>
+  )
+}

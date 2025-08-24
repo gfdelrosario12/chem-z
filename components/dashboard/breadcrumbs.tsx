@@ -23,7 +23,8 @@ export function Breadcrumbs() {
   const pathname = usePathname()
   const pathSegments = pathname.split("/").filter(Boolean)
 
-  if (pathSegments.length <= 1) {
+  if (pathSegments.length <=  // Role-specific fields
+ 1) {
     return null
   }
 
