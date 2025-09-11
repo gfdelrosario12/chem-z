@@ -13,8 +13,9 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { useRouter } from "next/navigation"
 
-// Mock user data
+// Mock user data (replace with /api/users/me later)
 const mockUser = {
   name: "John Doe",
   email: "john.doe@example.com",
@@ -27,6 +28,27 @@ interface HeaderProps {
 }
 
 export function Header({ setSidebarOpen }: HeaderProps) {
+  const router = useRouter()
+  const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL
+
+  // ✅ Handle logout
+  const handleLogout = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/users/logout`, {
+        method: "POST",
+        credentials: "include", // send cookies
+      })
+
+      if (res.ok) {
+        router.push("/login") // redirect after logout
+      } else {
+        console.error("Logout failed")
+      }
+    } catch (err) {
+      console.error("Error logging out:", err)
+    }
+  }
+
   return (
     <div className="sticky top-0 z-40 flex h-16 shrink-0 items-center gap-x-4 border-b border-gray-200 bg-white px-4 shadow-sm dark:border-gray-700 dark:bg-gray-800 sm:gap-x-6 sm:px-6 lg:px-8">
       <Button variant="ghost" size="icon" onClick={() => setSidebarOpen(true)} className="lg:hidden">
@@ -91,7 +113,10 @@ export function Header({ setSidebarOpen }: HeaderProps) {
               <DropdownMenuItem>Settings</DropdownMenuItem>
               <DropdownMenuItem>Support</DropdownMenuItem>
               <DropdownMenuSeparator />
-              <DropdownMenuItem>Log out</DropdownMenuItem>
+              {/* ✅ Logout handler */}
+              <DropdownMenuItem onClick={handleLogout} className="cursor-pointer">
+                Log out
+              </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         </div>

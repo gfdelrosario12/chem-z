@@ -4,11 +4,13 @@ import { Fragment } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { Dialog, Transition } from "@headlessui/react"
-import { X, Home, BookOpen, BarChart3, User, Users, Settings, GraduationCap } from "lucide-react"
+import { 
+  X, Home, BookOpen, BarChart3, User, Users, GraduationCap 
+} from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 
-// Mock user data - in real app this would come from auth context
+// Mock user data - replace with real auth later
 const mockUser = {
   name: "John Doe",
   email: "john.doe@example.com",
@@ -17,38 +19,35 @@ const mockUser = {
 }
 
 const getNavigationItems = (role: string) => {
-  const baseItems = [{ name: "Home", href: "/dashboard", icon: Home }]
-
-  const studentItems = [
-    { name: "Class Feed", href: "/dashboard/feed", icon: BookOpen },
-    { name: "Grades", href: "/dashboard/grades", icon: BarChart3 },
-    { name: "Profile", href: "/dashboard/profile", icon: User },
-  ]
-
-  const teacherItems = [
-    { name: "Class Feed", href: "/dashboard/feed", icon: BookOpen },
-    { name: "My Classes", href: "/dashboard/classes", icon: GraduationCap },
-    { name: "Students", href: "/dashboard/students", icon: Users },
-    { name: "Grades", href: "/dashboard/grades", icon: BarChart3 },
-    { name: "Profile", href: "/dashboard/profile", icon: User },
-  ]
-
-  const adminItems = [
-    { name: "User Management", href: "/dashboard/users", icon: Users },
-    { name: "Class Management", href: "/dashboard/classes", icon: GraduationCap },
-    { name: "System Settings", href: "/dashboard/settings", icon: Settings },
-    { name: "Reports", href: "/dashboard/reports", icon: BarChart3 },
-    { name: "Profile", href: "/dashboard/profile", icon: User },
-  ]
-
-  switch (role) {
-    case "teacher":
-      return [...baseItems, ...teacherItems]
-    case "admin":
-      return [...baseItems, ...adminItems]
-    default:
-      return [...baseItems, ...studentItems]
+  if (role === "student") {
+    return [
+      { name: "Home", href: "/dashboard", icon: Home },
+      { name: "Class Feed", href: "/dashboard/feed", icon: BookOpen },
+      { name: "Grades", href: "/dashboard/grades", icon: BarChart3 },
+      { name: "Profile", href: "/dashboard/profile", icon: User },
+    ]
   }
+
+  if (role === "teacher") {
+    return [
+      { name: "Home", href: "/dashboard", icon: Home },
+      { name: "Class Feed", href: "/dashboard/feed", icon: BookOpen },
+      { name: "My Classes", href: "/dashboard/classes", icon: GraduationCap },
+      { name: "Students", href: "/dashboard/students", icon: Users },
+      { name: "Grades", href: "/dashboard/grades", icon: BarChart3 },
+      { name: "Profile", href: "/dashboard/profile", icon: User },
+    ]
+  }
+
+  if (role === "admin") {
+    return [
+      { name: "Home", href: "/dashboard", icon: Home },
+      { name: "User Management", href: "/dashboard/users", icon: Users },
+      { name: "Class Management", href: "/dashboard/classes", icon: GraduationCap },
+    ]
+  }
+
+  return []
 }
 
 interface SidebarProps {

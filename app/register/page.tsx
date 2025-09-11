@@ -84,7 +84,7 @@ const RegisterPage: React.FC = () => {
 
   const gradeLevels = [
     "Grade 7",
-    "Grade 8", 
+    "Grade 8",
     "Grade 9",
     "Grade 10",
     "Grade 11",
@@ -212,11 +212,11 @@ const RegisterPage: React.FC = () => {
     try {
       // Prepare data for API (exclude confirmPassword and unused role-specific fields)
       const { confirmPassword, ...baseData } = formData;
-      
+
       // Only include role-specific fields based on selected role
       let apiData = { ...baseData };
       if (formData.role === "ADMIN") {
-        apiData = { 
+        apiData = {
           username: baseData.username,
           password: baseData.password,
           email: baseData.email,
@@ -224,10 +224,10 @@ const RegisterPage: React.FC = () => {
           firstName: baseData.firstName,
           middleName: baseData.middleName,
           lastName: baseData.lastName,
-          department: baseData.department 
+          department: baseData.department
         };
       } else if (formData.role === "STUDENT") {
-        apiData = { 
+        apiData = {
           username: baseData.username,
           password: baseData.password,
           email: baseData.email,
@@ -235,10 +235,10 @@ const RegisterPage: React.FC = () => {
           firstName: baseData.firstName,
           middleName: baseData.middleName,
           lastName: baseData.lastName,
-          gradeLevel: baseData.gradeLevel 
+          gradeLevel: baseData.gradeLevel
         };
       } else if (formData.role === "TEACHER") {
-        apiData = { 
+        apiData = {
           username: baseData.username,
           password: baseData.password,
           email: baseData.email,
@@ -246,7 +246,7 @@ const RegisterPage: React.FC = () => {
           firstName: baseData.firstName,
           middleName: baseData.middleName,
           lastName: baseData.lastName,
-          subject: baseData.subject 
+          subject: baseData.subject
         };
       }
 
@@ -321,11 +321,10 @@ const RegisterPage: React.FC = () => {
                 name="department"
                 value={formData.department || ""}
                 onChange={handleChange}
-                className={`w-full pl-10 pr-3 py-2 border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-800 dark:text-gray-100 dark:border-gray-600 ${
-                  errors.department
+                className={`w-full pl-10 pr-3 py-2 border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-800 dark:text-gray-100 dark:border-gray-600 ${errors.department
                     ? "border-red-500 focus:ring-red-500 focus:border-red-500"
                     : "border-gray-300"
-                }`}
+                  }`}
               >
                 <option value="">Select department</option>
                 {departments.map((dept) => (
@@ -354,11 +353,10 @@ const RegisterPage: React.FC = () => {
                 name="gradeLevel"
                 value={formData.gradeLevel || ""}
                 onChange={handleChange}
-                className={`w-full pl-10 pr-3 py-2 border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-800 dark:text-gray-100 dark:border-gray-600 ${
-                  errors.gradeLevel
+                className={`w-full pl-10 pr-3 py-2 border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-800 dark:text-gray-100 dark:border-gray-600 ${errors.gradeLevel
                     ? "border-red-500 focus:ring-red-500 focus:border-red-500"
                     : "border-gray-300"
-                }`}
+                  }`}
               >
                 <option value="">Select grade level</option>
                 {gradeLevels.map((grade) => (
@@ -387,11 +385,10 @@ const RegisterPage: React.FC = () => {
                 name="subject"
                 value={formData.subject || ""}
                 onChange={handleChange}
-                className={`w-full pl-10 pr-3 py-2 border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-800 dark:text-gray-100 dark:border-gray-600 ${
-                  errors.subject
+                className={`w-full pl-10 pr-3 py-2 border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-800 dark:text-gray-100 dark:border-gray-600 ${errors.subject
                     ? "border-red-500 focus:ring-red-500 focus:border-red-500"
                     : "border-gray-300"
-                }`}
+                  }`}
               >
                 <option value="">Select subject</option>
                 {subjects.map((subj) => (
@@ -429,325 +426,318 @@ const RegisterPage: React.FC = () => {
           </p>
         </div>
 
-<Card>
-        <CardHeader className="text-center">
-          <CardTitle className="text-2xl font-semibold">Create Account</CardTitle>
-          <CardDescription>Choose your role and fill in your details</CardDescription>
-        </CardHeader>
-        <CardContent>
+        <Card>
+          <CardHeader className="text-center">
+            <CardTitle className="text-2xl font-semibold">Create Account</CardTitle>
+            <CardDescription>Choose your role and fill in your details</CardDescription>
+          </CardHeader>
+          <CardContent>
 
-          <div className="p-6 pt-6">
-            <div className="space-y-4">
-              {/* General Error Message */}
-              {generalError && (
-                <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-md p-3">
-                  <div className="flex">
-                    <AlertCircle className="h-5 w-5 text-red-400" />
-                    <p className="ml-3 text-sm text-red-800 dark:text-red-200">
-                      {generalError}
-                    </p>
+            <div className="p-6 pt-6">
+              <div className="space-y-4">
+                {/* General Error Message */}
+                {generalError && (
+                  <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-md p-3">
+                    <div className="flex">
+                      <AlertCircle className="h-5 w-5 text-red-400" />
+                      <p className="ml-3 text-sm text-red-800 dark:text-red-200">
+                        {generalError}
+                      </p>
+                    </div>
                   </div>
-                </div>
-              )}
-
-              {/* Success Message */}
-              {successMessage && (
-                <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-md p-3">
-                  <div className="flex">
-                    <CheckCircle2 className="h-5 w-5 text-green-400" />
-                    <p className="ml-3 text-sm text-green-800 dark:text-green-200">
-                      {successMessage}
-                    </p>
-                  </div>
-                </div>
-              )}
-
-              {/* Role Selection */}
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-gray-700 dark:text-gray-200">
-                  Select your role
-                </label>
-                <div className="space-y-2">
-                  {roles.map((role) => (
-                    <label
-                      key={role.value}
-                      className={`relative flex cursor-pointer rounded-lg border p-3 focus:outline-none transition-colors ${
-                        formData.role === role.value
-                          ? "border-blue-600 bg-blue-50 dark:border-blue-500 dark:bg-blue-900/20"
-                          : "border-gray-200 bg-white hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:hover:bg-gray-700"
-                      }`}
-                    >
-                      <input
-                        type="radio"
-                        name="role"
-                        value={role.value}
-                        checked={formData.role === role.value}
-                        onChange={handleChange}
-                        className="sr-only"
-                      />
-                      <div className="flex w-full items-center justify-between">
-                        <div className="text-sm">
-                          <div className="font-medium text-gray-900 dark:text-gray-100">
-                            {role.label}
-                          </div>
-                          <div className="text-gray-600 dark:text-gray-400">
-                            {role.description}
-                          </div>
-                        </div>
-                        {formData.role === role.value && (
-                          <CheckCircle2 className="h-5 w-5 text-blue-600 dark:text-blue-400" />
-                        )}
-                      </div>
-                    </label>
-                  ))}
-                </div>
-                {errors.role && (
-                  <p className="text-sm text-red-600 dark:text-red-400">
-                    {errors.role}
-                  </p>
                 )}
-              </div>
 
-              {/* Role-Specific Fields */}
-              {formData.role && renderRoleSpecificFields()}
+                {/* Success Message */}
+                {successMessage && (
+                  <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-md p-3">
+                    <div className="flex">
+                      <CheckCircle2 className="h-5 w-5 text-green-400" />
+                      <p className="ml-3 text-sm text-green-800 dark:text-green-200">
+                        {successMessage}
+                      </p>
+                    </div>
+                  </div>
+                )}
 
-              {/* Personal Information */}
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-1">
-                  <label
-                    htmlFor="firstName"
-                    className="text-sm font-medium text-gray-700 dark:text-gray-200"
-                  >
-                    First Name
+                {/* Role Selection */}
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-gray-700 dark:text-gray-200">
+                    Select your role
                   </label>
-                  <div className="relative">
-                    <User className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                  <div className="space-y-2">
+                    {roles.map((role) => (
+                      <label
+                        key={role.value}
+                        className={`relative flex cursor-pointer rounded-lg border p-3 focus:outline-none transition-colors ${formData.role === role.value
+                            ? "border-blue-600 bg-blue-50 dark:border-blue-500 dark:bg-blue-900/20"
+                            : "border-gray-200 bg-white hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:hover:bg-gray-700"
+                          }`}
+                      >
+                        <input
+                          type="radio"
+                          name="role"
+                          value={role.value}
+                          checked={formData.role === role.value}
+                          onChange={handleChange}
+                          className="sr-only"
+                        />
+                        <div className="flex w-full items-center justify-between">
+                          <div className="text-sm">
+                            <div className="font-medium text-gray-900 dark:text-gray-100">
+                              {role.label}
+                            </div>
+                            <div className="text-gray-600 dark:text-gray-400">
+                              {role.description}
+                            </div>
+                          </div>
+                          {formData.role === role.value && (
+                            <CheckCircle2 className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                          )}
+                        </div>
+                      </label>
+                    ))}
+                  </div>
+                  {errors.role && (
+                    <p className="text-sm text-red-600 dark:text-red-400">
+                      {errors.role}
+                    </p>
+                  )}
+                </div>
+
+                {/* Role-Specific Fields */}
+                {formData.role && renderRoleSpecificFields()}
+
+                {/* Personal Information */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <label
+                      htmlFor="firstName"
+                      className="text-sm font-medium text-gray-700 dark:text-gray-200"
+                    >
+                      First Name
+                    </label>
+                    <div className="relative">
+                      <User className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                      <input
+                        type="text"
+                        id="firstName"
+                        name="firstName"
+                        value={formData.firstName}
+                        onChange={handleChange}
+                        className={`w-full pl-10 pr-3 py-2 border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-800 dark:text-gray-100 dark:border-gray-600 ${errors.firstName
+                            ? "border-red-500 focus:ring-red-500 focus:border-red-500"
+                            : "border-gray-300"
+                          }`}
+                        placeholder="John"
+                      />
+                    </div>
+                    {errors.firstName && (
+                      <p className="text-sm text-red-600 dark:text-red-400">
+                        {errors.firstName}
+                      </p>
+                    )}
+                  </div>
+
+                  <div className="space-y-1">
+                    <label
+                      htmlFor="lastName"
+                      className="text-sm font-medium text-gray-700 dark:text-gray-200"
+                    >
+                      Last Name
+                    </label>
                     <input
                       type="text"
-                      id="firstName"
-                      name="firstName"
-                      value={formData.firstName}
+                      id="lastName"
+                      name="lastName"
+                      value={formData.lastName}
                       onChange={handleChange}
-                      className={`w-full pl-10 pr-3 py-2 border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-800 dark:text-gray-100 dark:border-gray-600 ${
-                        errors.firstName
+                      className={`w-full px-3 py-2 border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-800 dark:text-gray-100 dark:border-gray-600 ${errors.lastName
                           ? "border-red-500 focus:ring-red-500 focus:border-red-500"
                           : "border-gray-300"
-                      }`}
-                      placeholder="John"
+                        }`}
+                      placeholder="Doe"
                     />
+                    {errors.lastName && (
+                      <p className="text-sm text-red-600 dark:text-red-400">
+                        {errors.lastName}
+                      </p>
+                    )}
                   </div>
-                  {errors.firstName && (
-                    <p className="text-sm text-red-600 dark:text-red-400">
-                      {errors.firstName}
-                    </p>
-                  )}
                 </div>
 
+                {/* Middle Name */}
                 <div className="space-y-1">
                   <label
-                    htmlFor="lastName"
+                    htmlFor="middleName"
                     className="text-sm font-medium text-gray-700 dark:text-gray-200"
                   >
-                    Last Name
+                    Middle Name <span className="text-gray-500">(Optional)</span>
                   </label>
                   <input
                     type="text"
-                    id="lastName"
-                    name="lastName"
-                    value={formData.lastName}
+                    id="middleName"
+                    name="middleName"
+                    value={formData.middleName}
                     onChange={handleChange}
-                    className={`w-full px-3 py-2 border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-800 dark:text-gray-100 dark:border-gray-600 ${
-                      errors.lastName
-                        ? "border-red-500 focus:ring-red-500 focus:border-red-500"
-                        : "border-gray-300"
-                    }`}
-                    placeholder="Doe"
-                  />
-                  {errors.lastName && (
-                    <p className="text-sm text-red-600 dark:text-red-400">
-                      {errors.lastName}
-                    </p>
-                  )}
-                </div>
-              </div>
-
-              {/* Middle Name */}
-              <div className="space-y-1">
-                <label
-                  htmlFor="middleName"
-                  className="text-sm font-medium text-gray-700 dark:text-gray-200"
-                >
-                  Middle Name <span className="text-gray-500">(Optional)</span>
-                </label>
-                <input
-                  type="text"
-                  id="middleName"
-                  name="middleName"
-                  value={formData.middleName}
-                  onChange={handleChange}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-800 dark:text-gray-100 dark:border-gray-600"
-                  placeholder="Middle name"
-                />
-              </div>
-
-              {/* Username */}
-              <div className="space-y-1">
-                <label
-                  htmlFor="username"
-                  className="text-sm font-medium text-gray-700 dark:text-gray-200"
-                >
-                  Username
-                </label>
-                <div className="relative">
-                  <UserCheck className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                  <input
-                    type="text"
-                    id="username"
-                    name="username"
-                    value={formData.username}
-                    onChange={handleChange}
-                    className={`w-full pl-10 pr-3 py-2 border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-800 dark:text-gray-100 dark:border-gray-600 ${
-                      errors.username
-                        ? "border-red-500 focus:ring-red-500 focus:border-red-500"
-                        : "border-gray-300"
-                    }`}
-                    placeholder="johndoe"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-800 dark:text-gray-100 dark:border-gray-600"
+                    placeholder="Middle name"
                   />
                 </div>
-                {errors.username && (
-                  <p className="text-sm text-red-600 dark:text-red-400">
-                    {errors.username}
-                  </p>
-                )}
-              </div>
 
-              {/* Email */}
-              <div className="space-y-1">
-                <label
-                  htmlFor="email"
-                  className="text-sm font-medium text-gray-700 dark:text-gray-200"
-                >
-                  Email
-                </label>
-                <div className="relative">
-                  <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                  <input
-                    type="email"
-                    id="email"
-                    name="email"
-                    value={formData.email}
-                    onChange={handleChange}
-                    className={`w-full pl-10 pr-3 py-2 border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-800 dark:text-gray-100 dark:border-gray-600 ${
-                      errors.email
-                        ? "border-red-500 focus:ring-red-500 focus:border-red-500"
-                        : "border-gray-300"
-                    }`}
-                    placeholder="john@example.com"
-                  />
-                </div>
-                {errors.email && (
-                  <p className="text-sm text-red-600 dark:text-red-400">
-                    {errors.email}
-                  </p>
-                )}
-              </div>
-
-              {/* Password Fields */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Username */}
                 <div className="space-y-1">
                   <label
-                    htmlFor="password"
+                    htmlFor="username"
                     className="text-sm font-medium text-gray-700 dark:text-gray-200"
                   >
-                    Password
+                    Username
                   </label>
                   <div className="relative">
-                    <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                    <UserCheck className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
                     <input
-                      type="password"
-                      id="password"
-                      name="password"
-                      value={formData.password}
+                      type="text"
+                      id="username"
+                      name="username"
+                      value={formData.username}
                       onChange={handleChange}
-                      className={`w-full pl-10 pr-3 py-2 border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-800 dark:text-gray-100 dark:border-gray-600 ${
-                        errors.password
+                      className={`w-full pl-10 pr-3 py-2 border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-800 dark:text-gray-100 dark:border-gray-600 ${errors.username
                           ? "border-red-500 focus:ring-red-500 focus:border-red-500"
                           : "border-gray-300"
-                      }`}
-                      placeholder="••••••••"
+                        }`}
+                      placeholder="johndoe"
                     />
                   </div>
-                  {errors.password && (
+                  {errors.username && (
                     <p className="text-sm text-red-600 dark:text-red-400">
-                      {errors.password}
+                      {errors.username}
                     </p>
                   )}
                 </div>
 
+                {/* Email */}
                 <div className="space-y-1">
                   <label
-                    htmlFor="confirmPassword"
+                    htmlFor="email"
                     className="text-sm font-medium text-gray-700 dark:text-gray-200"
                   >
-                    Confirm Password
+                    Email
                   </label>
                   <div className="relative">
-                    <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                    <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
                     <input
-                      type="password"
-                      id="confirmPassword"
-                      name="confirmPassword"
-                      value={formData.confirmPassword}
+                      type="email"
+                      id="email"
+                      name="email"
+                      value={formData.email}
                       onChange={handleChange}
-                      className={`w-full pl-10 pr-3 py-2 border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-800 dark:text-gray-100 dark:border-gray-600 ${
-                        errors.confirmPassword
+                      className={`w-full pl-10 pr-3 py-2 border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-800 dark:text-gray-100 dark:border-gray-600 ${errors.email
                           ? "border-red-500 focus:ring-red-500 focus:border-red-500"
                           : "border-gray-300"
-                      }`}
-                      placeholder="••••••••"
+                        }`}
+                      placeholder="john@example.com"
                     />
                   </div>
-                  {errors.confirmPassword && (
+                  {errors.email && (
                     <p className="text-sm text-red-600 dark:text-red-400">
-                      {errors.confirmPassword}
+                      {errors.email}
                     </p>
                   )}
                 </div>
-              </div>
 
-              {/* Submit Button */}
-              <button
-                type="button"
-                onClick={handleSubmit}
-                disabled={isLoading}
-                className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white font-medium py-2 px-4 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors"
-              >
-                {isLoading ? (
-                  <div className="flex items-center justify-center">
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                    Creating Account...
+                {/* Password Fields */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <label
+                      htmlFor="password"
+                      className="text-sm font-medium text-gray-700 dark:text-gray-200"
+                    >
+                      Password
+                    </label>
+                    <div className="relative">
+                      <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                      <input
+                        type="password"
+                        id="password"
+                        name="password"
+                        value={formData.password}
+                        onChange={handleChange}
+                        className={`w-full pl-10 pr-3 py-2 border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-800 dark:text-gray-100 dark:border-gray-600 ${errors.password
+                            ? "border-red-500 focus:ring-red-500 focus:border-red-500"
+                            : "border-gray-300"
+                          }`}
+                        placeholder="••••••••"
+                      />
+                    </div>
+                    {errors.password && (
+                      <p className="text-sm text-red-600 dark:text-red-400">
+                        {errors.password}
+                      </p>
+                    )}
                   </div>
-                ) : (
-                  "Create Account"
-                )}
-              </button>
 
-              {/* Sign in link */}
-              <div className="text-center text-sm">
-                Already have an account?{" "}
-                <a
-                  href="/login"
-                  className="text-blue-600 hover:underline dark:text-blue-400"
+                  <div className="space-y-1">
+                    <label
+                      htmlFor="confirmPassword"
+                      className="text-sm font-medium text-gray-700 dark:text-gray-200"
+                    >
+                      Confirm Password
+                    </label>
+                    <div className="relative">
+                      <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                      <input
+                        type="password"
+                        id="confirmPassword"
+                        name="confirmPassword"
+                        value={formData.confirmPassword}
+                        onChange={handleChange}
+                        className={`w-full pl-10 pr-3 py-2 border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-800 dark:text-gray-100 dark:border-gray-600 ${errors.confirmPassword
+                            ? "border-red-500 focus:ring-red-500 focus:border-red-500"
+                            : "border-gray-300"
+                          }`}
+                        placeholder="••••••••"
+                      />
+                    </div>
+                    {errors.confirmPassword && (
+                      <p className="text-sm text-red-600 dark:text-red-400">
+                        {errors.confirmPassword}
+                      </p>
+                    )}
+                  </div>
+                </div>
+
+                {/* Submit Button */}
+                <button
+                  type="button"
+                  onClick={handleSubmit}
+                  disabled={isLoading}
+                  className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white font-medium py-2 px-4 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors"
                 >
-                  Sign in
-                </a>
+                  {isLoading ? (
+                    <div className="flex items-center justify-center">
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                      Creating Account...
+                    </div>
+                  ) : (
+                    "Create Account"
+                  )}
+                </button>
+
+                {/* Sign in link */}
+                <div className="text-center text-sm">
+                  Already have an account?{" "}
+                  <a
+                    href="/login"
+                    className="text-blue-600 hover:underline dark:text-blue-400"
+                  >
+                    Sign in
+                  </a>
+                </div>
               </div>
             </div>
-          </div>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      </div>
     </div>
-  </div>
   );
 };
 
