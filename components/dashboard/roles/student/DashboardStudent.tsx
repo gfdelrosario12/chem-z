@@ -28,7 +28,7 @@ type Stat = {
   color: string
 }
 
-export function DashboardStudent({ user }: { user: any }) {
+export default function DashboardStudent({ user }: { user: any }) {
   const [announcements, setAnnouncements] = useState<Announcement[]>([])
   const [activities, setActivities] = useState<Activity[]>([])
   const [stats, setStats] = useState<Stat[]>([])

@@ -4,9 +4,9 @@ import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 
 // Import your role-specific dashboards
-import DashboardAdmin from "@/components/dashboard/roles/DashboardAdmin"
-import DashboardTeacher from "@/components/dashboard/roles/DashboardTeacher"
-import DashboardStudent from "@/components/dashboard/roles/DashboardStudent"
+import DashboardAdmin from "@/components/dashboard/roles/admin/DashboardAdmin"
+import DashboardTeacher from "@/components/dashboard/roles/teacher/DashboardTeacher"
+import DashboardStudent from "@/components/dashboard/roles/student/DashboardStudent"
 
 type User = {
   id: number
@@ -32,7 +32,7 @@ export default function DashboardHome() {
           return
         }
 
-        const data = await res.json()
+        const data: User = await res.json()
         setUser(data)
       } catch (err) {
         console.error("Failed to fetch user:", err)
@@ -50,17 +50,17 @@ export default function DashboardHome() {
   }
 
   if (!user) {
-    return null // already redirected
+    return null // user is not logged in, already redirected
   }
 
   // ✅ Role-based rendering
-  if (user.role === "admin") {
-    return <DashboardAdmin user={user} />
+  switch (user.role) {
+    case "admin":
+      return <DashboardAdmin user={user} />
+    case "teacher":
+      return <DashboardTeacher user={user} />
+    case "student":
+    default:
+      return <DashboardStudent user={user} />
   }
-
-  if (user.role === "teacher") {
-    return <DashboardTeacher user={user} />
-  }
-
-  return <DashboardStudent user={user} />
 }

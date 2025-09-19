@@ -1,21 +1,17 @@
 "use client"
 
-import { Fragment } from "react"
+import { Fragment, useEffect, useState } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { Dialog, Transition } from "@headlessui/react"
-import { 
-  X, Home, BookOpen, BarChart3, User, Users, GraduationCap 
-} from "lucide-react"
+import { X, Home, BookOpen, BarChart3, User, Users, GraduationCap } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
+import Cookies from "js-cookie"
 
-// Mock user data - replace with real auth later
-const mockUser = {
-  name: "John Doe",
-  email: "john.doe@example.com",
-  role: "student" as "student" | "teacher" | "admin",
-  avatar: "/diverse-user-avatars.png",
+interface SidebarProps {
+  open: boolean
+  setOpen: (open: boolean) => void
 }
 
 const getNavigationItems = (role: string) => {
@@ -50,17 +46,35 @@ const getNavigationItems = (role: string) => {
   return []
 }
 
-interface SidebarProps {
-  open: boolean
-  setOpen: (open: boolean) => void
-}
-
 export function Sidebar({ open, setOpen }: SidebarProps) {
   const pathname = usePathname()
-  const navigation = getNavigationItems(mockUser.role)
+
+  // State to store user info
+  const [user, setUser] = useState({
+    name: "Guest",
+    role: "student",
+    avatar: "https://images.unsplash.com/photo-1581091215365-72d8d3d0f8c6?auto=format&fit=crop&w=64&q=80",
+  })
+
+  useEffect(() => {
+    // Get values from cookies
+    const firstName = Cookies.get("firstName") || ""
+    const lastName = Cookies.get("lastName") || ""
+    const role = Cookies.get("role") || "student"
+    const avatar = Cookies.get("avatar") || "/diverse-user-avatars.png"
+
+    // Combine firstName + lastName
+    const name =
+      (firstName && lastName ? `${firstName} ${lastName}` : firstName || lastName) || "Guest"
+
+    setUser({ name, role, avatar })
+  }, [])
+
+  const navigation = getNavigationItems(user.role)
 
   const SidebarContent = () => (
     <div className="flex grow flex-col gap-y-5 overflow-y-auto bg-white dark:bg-gray-800 px-6 pb-4">
+      {/* Brand */}
       <div className="flex h-16 shrink-0 items-center">
         <div className="flex items-center space-x-2">
           <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
@@ -69,6 +83,8 @@ export function Sidebar({ open, setOpen }: SidebarProps) {
           <span className="text-xl font-bold text-gray-900 dark:text-white">Chem-Z</span>
         </div>
       </div>
+
+      {/* Navigation */}
       <nav className="flex flex-1 flex-col">
         <ul role="list" className="flex flex-1 flex-col gap-y-7">
           <li>
@@ -91,19 +107,21 @@ export function Sidebar({ open, setOpen }: SidebarProps) {
               ))}
             </ul>
           </li>
+
+          {/* User Info */}
           <li className="mt-auto">
             <div className="flex items-center gap-x-4 px-2 py-3 text-sm font-medium leading-6 text-gray-900 dark:text-white">
-              <img
-                className="h-8 w-8 rounded-full bg-gray-50"
-                src={mockUser.avatar || "/placeholder.svg"}
-                alt={mockUser.name}
-              />
+              {/* Use the Cz brand as avatar */}
+              <div className="h-8 w-8 bg-blue-600 rounded-lg flex items-center justify-center">
+                <span className="text-white font-bold text-sm">Cz</span>
+              </div>
               <div className="flex-1">
-                <p className="text-sm font-medium">{mockUser.name}</p>
-                <p className="text-xs text-gray-500 dark:text-gray-400 capitalize">{mockUser.role}</p>
+                <p className="text-sm font-medium">{user.name}</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400 capitalize">{user.role}</p>
               </div>
             </div>
           </li>
+
         </ul>
       </nav>
     </div>
