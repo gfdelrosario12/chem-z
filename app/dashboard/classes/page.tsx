@@ -1,4 +1,4 @@
-import { ClassManagement } from "@/components/dashboard/class-management"
+import { ClassManagement } from "@/components/dashboard/common/class-management"
 
 export default function ClassesPage() {
   return <ClassManagement />

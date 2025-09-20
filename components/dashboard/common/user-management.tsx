@@ -2,10 +2,10 @@
 
 import { useEffect, useState } from "react";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE!;
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL!;
 
 interface BaseUser {
-  id: number;
+  id: number | null; // allow null to match backend inconsistency
   username: string;
   email: string;
   role: "ADMIN" | "TEACHER" | "STUDENT";
@@ -34,15 +34,27 @@ export function UserManagement() {
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [formData, setFormData] = useState<Partial<User>>({});
   const [showCreateModal, setShowCreateModal] = useState(false);
-  const [newUserData, setNewUserData] = useState<Partial<User> & { password?: string }>({
+  const [newUserData, setNewUserData] = useState<
+    Partial<User> & { password?: string }
+  >({
     role: "STUDENT",
     password: "",
   });
 
   useEffect(() => {
-    fetch(`${API_BASE}/api/users`, { credentials: "include" })
+    fetch(`${API_BASE}/users`, { credentials: "include" })
       .then((res) => res.json())
-      .then((data) => setUsers(Array.isArray(data) ? data : []))
+      .then((data) => {
+        if (Array.isArray(data)) {
+          setUsers(data);
+          // Debug: log any users with missing IDs
+          data.forEach((u) => {
+            if (!u.id) console.warn("User with missing ID:", u);
+          });
+        } else {
+          setUsers([]);
+        }
+      })
       .catch((err) => {
         console.error("Error fetching users:", err);
         setUsers([]);
@@ -50,11 +62,16 @@ export function UserManagement() {
       .finally(() => setLoading(false));
   }, []);
 
-  const handleDelete = async (id: number) => {
+  const handleDelete = async (id: number | null) => {
+    if (!id) {
+      alert("Invalid user ID ❌");
+      return;
+    }
+
     if (!confirm("Are you sure you want to delete this user?")) return;
 
     try {
-      const res = await fetch(`${API_BASE}/api/users/${id}`, {
+      const res = await fetch(`${API_BASE}/users/${id}`, {
         method: "DELETE",
         credentials: "include",
       });
@@ -71,10 +88,10 @@ export function UserManagement() {
   };
 
   const handleUpdate = async () => {
-    if (!editingUser) return;
+    if (!editingUser || !editingUser.id) return;
 
     try {
-      const res = await fetch(`${API_BASE}/api/users/${editingUser.id}`, {
+      const res = await fetch(`${API_BASE}/users/${editingUser.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
@@ -83,7 +100,9 @@ export function UserManagement() {
 
       if (res.ok) {
         const updated = await res.json();
-        setUsers((prev) => prev.map((u) => (u.id === updated.id ? updated : u)));
+        setUsers((prev) =>
+          prev.map((u) => (u.id === updated.id ? updated : u))
+        );
         setEditingUser(null);
       } else {
         const errText = await res.text();
@@ -103,7 +122,7 @@ export function UserManagement() {
     }
 
     try {
-      const res = await fetch("http://localhost:8080/api/users/register", {
+      const res = await fetch(`${API_BASE}/users/register`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
@@ -148,7 +167,9 @@ export function UserManagement() {
 
       {/* Users Table */}
       {users.length === 0 ? (
-        <p className="text-center text-gray-500 dark:text-gray-400">No users found.</p>
+        <p className="text-center text-gray-500 dark:text-gray-400">
+          No users found.
+        </p>
       ) : (
         <div className="overflow-x-auto rounded-lg shadow-lg">
           <table className="min-w-full border border-gray-200 dark:border-gray-700 rounded-lg">
@@ -164,27 +185,29 @@ export function UserManagement() {
               </tr>
             </thead>
             <tbody className="bg-white dark:bg-gray-900">
-              {users.map((user) => (
+              {users.map((user, index) => (
                 <tr
-                  key={user.id}
+                  key={user.id ?? `${user.username}-${index}`}
                   className="hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
                 >
-                  <td className="px-4 py-3 border-b">{user.id}</td>
-                  <td className="px-4 py-3 border-b font-medium">{user.username}</td>
+                  <td className="px-4 py-3 border-b">{user.id ?? "N/A"}</td>
+                  <td className="px-4 py-3 border-b font-medium">
+                    {user.username}
+                  </td>
                   <td className="px-4 py-3 border-b">
-                    {user.firstName} {user.middleName ? `${user.middleName} ` : ""}
+                    {user.firstName}{" "}
+                    {user.middleName ? `${user.middleName} ` : ""}
                     {user.lastName}
                   </td>
                   <td className="px-4 py-3 border-b">{user.email}</td>
                   <td className="px-4 py-3 border-b font-semibold">
                     <span
-                      className={`px-2 py-1 rounded-full text-xs ${
-                        user.role === "ADMIN"
-                          ? "bg-blue-100 text-blue-700 dark:bg-blue-800 dark:text-blue-200"
-                          : user.role === "TEACHER"
+                      className={`px-2 py-1 rounded-full text-xs ${user.role === "ADMIN"
+                        ? "bg-blue-100 text-blue-700 dark:bg-blue-800 dark:text-blue-200"
+                        : user.role === "TEACHER"
                           ? "bg-sky-100 text-sky-700 dark:bg-sky-800 dark:text-sky-200"
                           : "bg-indigo-100 text-indigo-700 dark:bg-indigo-800 dark:text-indigo-200"
-                      }`}
+                        }`}
                     >
                       {user.role}
                     </span>

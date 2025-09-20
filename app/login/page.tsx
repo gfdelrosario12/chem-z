@@ -20,16 +20,27 @@ export default function LoginPage() {
 
     try {
       const res = await fetch("http://localhost:8080/api/users/login", {
-        credentials: "include",
+        credentials: "include", // important to include HttpOnly JWT cookie
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ username, password }),
       })
-
+      
       if (res.ok) {
-        const message = await res.text()
-        console.log("✅ Login success:", message)
-        router.push("/dashboard") // change redirect path as needed
+        const data = await res.json()
+        console.log("✅ Login success:", data)
+
+        // Save in sessionStorage
+        if (data.firstName) sessionStorage.setItem("firstName", data.firstName)
+        if (data.role) sessionStorage.setItem("role", data.role)
+        if (data.email) sessionStorage.setItem("email", data.email)  // <-- save email
+
+        // Save in cookies
+        if (data.firstName) document.cookie = `firstName=${data.firstName}; path=/;`
+        if (data.role) document.cookie = `role=${data.role}; path=/;`
+        if (data.email) document.cookie = `email=${data.email}; path=/;`   // <-- save email
+
+        router.push("/dashboard")
       } else {
         const message = await res.text()
         setError(message || "Invalid credentials")
