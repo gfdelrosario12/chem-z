@@ -12,6 +12,10 @@ type User = {
   id: number
   username: string
   role: "admin" | "teacher" | "student"
+  firstName?: string
+  lastName?: string
+  email?: string
+  [key: string]: any // for any additional fields
 }
 
 export default function DashboardHome() {
@@ -33,6 +37,10 @@ export default function DashboardHome() {
         }
 
         const data: User = await res.json()
+
+        // Normalize role to lowercase for frontend
+        data.role = data.role.toLowerCase() as "admin" | "teacher" | "student"
+
         setUser(data)
       } catch (err) {
         console.error("Failed to fetch user:", err)

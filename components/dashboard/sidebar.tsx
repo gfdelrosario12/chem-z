@@ -7,70 +7,83 @@ import { Dialog, Transition } from "@headlessui/react"
 import { X, Home, BookOpen, BarChart3, User, Users, GraduationCap } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
-import Cookies from "js-cookie"
 
 interface SidebarProps {
   open: boolean
   setOpen: (open: boolean) => void
 }
 
+type User = {
+  id: number
+  username: string
+  role: "admin" | "teacher" | "student"
+  firstName?: string
+  lastName?: string
+  avatar?: string
+  [key: string]: any
+}
+
 const getNavigationItems = (role: string) => {
-  if (role === "student") {
-    return [
-      { name: "Home", href: "/dashboard", icon: Home },
-      { name: "Class Feed", href: "/dashboard/feed", icon: BookOpen },
-      { name: "Grades", href: "/dashboard/grades", icon: BarChart3 },
-      { name: "Profile", href: "/dashboard/profile", icon: User },
-    ]
+  switch (role) {
+    case "student":
+      return [
+        { name: "Home", href: "/dashboard", icon: Home },
+        { name: "Class Feed", href: "/dashboard/feed", icon: BookOpen },
+        { name: "Grades", href: "/dashboard/grades", icon: BarChart3 },
+        { name: "Profile", href: "/dashboard/profile", icon: User },
+      ]
+    case "teacher":
+      return [
+        { name: "Home", href: "/dashboard", icon: Home },
+        { name: "Class Feed", href: "/dashboard/feed", icon: BookOpen },
+        { name: "My Classes", href: "/dashboard/classes", icon: GraduationCap },
+        { name: "Students", href: "/dashboard/students", icon: Users },
+        { name: "Grades", href: "/dashboard/grades", icon: BarChart3 },
+        { name: "Profile", href: "/dashboard/profile", icon: User },
+      ]
+    case "admin":
+      return [
+        { name: "Home", href: "/dashboard", icon: Home },
+        { name: "User Management", href: "/dashboard/users", icon: Users },
+        { name: "Class Management", href: "/dashboard/classes", icon: GraduationCap },
+      ]
+    default:
+      return []
   }
-
-  if (role === "teacher") {
-    return [
-      { name: "Home", href: "/dashboard", icon: Home },
-      { name: "Class Feed", href: "/dashboard/feed", icon: BookOpen },
-      { name: "My Classes", href: "/dashboard/classes", icon: GraduationCap },
-      { name: "Students", href: "/dashboard/students", icon: Users },
-      { name: "Grades", href: "/dashboard/grades", icon: BarChart3 },
-      { name: "Profile", href: "/dashboard/profile", icon: User },
-    ]
-  }
-
-  if (role === "admin") {
-    return [
-      { name: "Home", href: "/dashboard", icon: Home },
-      { name: "User Management", href: "/dashboard/users", icon: Users },
-      { name: "Class Management", href: "/dashboard/classes", icon: GraduationCap },
-    ]
-  }
-
-  return []
 }
 
 export function Sidebar({ open, setOpen }: SidebarProps) {
   const pathname = usePathname()
-
-  // State to store user info
-  const [user, setUser] = useState({
-    name: "Guest",
-    role: "student",
-    avatar: "https://images.unsplash.com/photo-1581091215365-72d8d3d0f8c6?auto=format&fit=crop&w=64&q=80",
-  })
+  const [user, setUser] = useState<User | null>(null)
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    // Get values from cookies
-    const firstName = Cookies.get("firstName") || ""
-    const lastName = Cookies.get("lastName") || ""
-    const role = Cookies.get("role") || "student"
-    const avatar = Cookies.get("avatar") || "/diverse-user-avatars.png"
+    async function fetchUser() {
+      try {
+        const res = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/users/me`, {
+          credentials: "include",
+        })
 
-    // Combine firstName + lastName
-    const name =
-      (firstName && lastName ? `${firstName} ${lastName}` : firstName || lastName) || "Guest"
+        if (!res.ok) {
+          setUser(null)
+          return
+        }
 
-    setUser({ name, role, avatar })
+        const data: User = await res.json()
+        data.role = data.role.toLowerCase() as "admin" | "teacher" | "student"
+        setUser(data)
+      } catch (err) {
+        console.error("Failed to fetch user:", err)
+        setUser(null)
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchUser()
   }, [])
 
-  const navigation = getNavigationItems(user.role)
+  const navigation = getNavigationItems(user?.role || "student")
 
   const SidebarContent = () => (
     <div className="flex grow flex-col gap-y-5 overflow-y-auto bg-white dark:bg-gray-800 px-6 pb-4">
@@ -111,21 +124,25 @@ export function Sidebar({ open, setOpen }: SidebarProps) {
           {/* User Info */}
           <li className="mt-auto">
             <div className="flex items-center gap-x-4 px-2 py-3 text-sm font-medium leading-6 text-gray-900 dark:text-white">
-              {/* Use the Cz brand as avatar */}
               <div className="h-8 w-8 bg-blue-600 rounded-lg flex items-center justify-center">
                 <span className="text-white font-bold text-sm">Cz</span>
               </div>
               <div className="flex-1">
-                <p className="text-sm font-medium">{user.name}</p>
-                <p className="text-xs text-gray-500 dark:text-gray-400 capitalize">{user.role}</p>
+                <p className="text-sm font-medium">
+                  {user ? `${user.firstName || ""} ${user.lastName || ""}`.trim() : "Guest"}
+                </p>
+                <p className="text-xs text-gray-500 dark:text-gray-400 capitalize">
+                  {user?.role || "student"}
+                </p>
               </div>
             </div>
           </li>
-
         </ul>
       </nav>
     </div>
   )
+
+  if (loading) return <div className="hidden lg:flex lg:w-72 lg:flex-col p-4">Loading...</div>
 
   return (
     <>

@@ -2,9 +2,8 @@
 
 import { useEffect, useState } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Bell, BookOpen, ClipboardList, FileText, TrendingUp, Calendar, Award } from "lucide-react"
+import { Bell, Calendar } from "lucide-react"
 
 type Announcement = {
   id: number
@@ -34,24 +33,43 @@ export default function DashboardStudent({ user }: { user: any }) {
   const [stats, setStats] = useState<Stat[]>([])
 
   useEffect(() => {
-    // Replace with your backend endpoints
+    if (!user?.id) return
+
+    // Fetch Announcements
     fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/students/${user.id}/announcements`, {
       credentials: "include",
     })
       .then((res) => res.json())
-      .then(setAnnouncements)
+      .then((data) => {
+        console.log("Fetched announcements:", data)
+        setAnnouncements(Array.isArray(data) ? data : [])
+      })
+      .catch((err) => {
+        console.error("Failed to fetch announcements:", err)
+        setAnnouncements([])
+      })
 
+    // Fetch Activities
     fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/students/${user.id}/activities`, {
       credentials: "include",
     })
       .then((res) => res.json())
-      .then(setActivities)
+      .then((data) => setActivities(Array.isArray(data) ? data : []))
+      .catch((err) => {
+        console.error("Failed to fetch activities:", err)
+        setActivities([])
+      })
 
+    // Fetch Stats
     fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/students/${user.id}/stats`, {
       credentials: "include",
     })
       .then((res) => res.json())
-      .then(setStats)
+      .then((data) => setStats(Array.isArray(data) ? data : []))
+      .catch((err) => {
+        console.error("Failed to fetch stats:", err)
+        setStats([])
+      })
   }, [user.id])
 
   const getPriorityColor = (priority: string) => {
@@ -92,19 +110,23 @@ export default function DashboardStudent({ user }: { user: any }) {
 
       {/* Quick Stats */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {stats.map((stat) => (
-          <Card key={stat.label}>
-            <CardContent className="p-6">
-              <div className="flex items-center">
-                <stat.icon className={`h-6 w-6 ${stat.color}`} />
-                <div className="ml-4">
-                  <p className="text-sm font-medium">{stat.label}</p>
-                  <p className="text-2xl font-bold">{stat.value}</p>
+        {Array.isArray(stats) && stats.length > 0 ? (
+          stats.map((stat) => (
+            <Card key={stat.label}>
+              <CardContent className="p-6">
+                <div className="flex items-center">
+                  <stat.icon className={`h-6 w-6 ${stat.color}`} />
+                  <div className="ml-4">
+                    <p className="text-sm font-medium">{stat.label}</p>
+                    <p className="text-2xl font-bold">{stat.value}</p>
+                  </div>
                 </div>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
+              </CardContent>
+            </Card>
+          ))
+        ) : (
+          <p className="col-span-full text-gray-500 dark:text-gray-400">No stats available.</p>
+        )}
       </div>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
@@ -117,18 +139,22 @@ export default function DashboardStudent({ user }: { user: any }) {
             <CardDescription>Stay updated with the latest news</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            {announcements.map((a) => (
-              <div key={a.id} className="border-b pb-4 last:pb-0 last:border-none">
-                <div className="flex justify-between">
-                  <div>
-                    <h4 className="font-medium">{a.title}</h4>
-                    <p className="text-sm">{a.content}</p>
-                    <p className="text-xs text-gray-500">{new Date(a.date).toLocaleDateString()}</p>
+            {Array.isArray(announcements) && announcements.length > 0 ? (
+              announcements.map((a) => (
+                <div key={a.id} className="border-b pb-4 last:pb-0 last:border-none">
+                  <div className="flex justify-between">
+                    <div>
+                      <h4 className="font-medium">{a.title}</h4>
+                      <p className="text-sm">{a.content}</p>
+                      <p className="text-xs text-gray-500">{new Date(a.date).toLocaleDateString()}</p>
+                    </div>
+                    <Badge className={getPriorityColor(a.priority)}>{a.priority}</Badge>
                   </div>
-                  <Badge className={getPriorityColor(a.priority)}>{a.priority}</Badge>
                 </div>
-              </div>
-            ))}
+              ))
+            ) : (
+              <p className="text-gray-500 dark:text-gray-400">No announcements available.</p>
+            )}
           </CardContent>
         </Card>
 
@@ -140,15 +166,19 @@ export default function DashboardStudent({ user }: { user: any }) {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            {activities.map((act) => (
-              <div key={act.id} className="flex justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
-                <div>
-                  <h4 className="text-sm font-medium">{act.title}</h4>
-                  <p className="text-xs text-gray-500">Due: {new Date(act.dueDate).toLocaleDateString()}</p>
+            {Array.isArray(activities) && activities.length > 0 ? (
+              activities.map((act) => (
+                <div key={act.id} className="flex justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
+                  <div>
+                    <h4 className="text-sm font-medium">{act.title}</h4>
+                    <p className="text-xs text-gray-500">Due: {new Date(act.dueDate).toLocaleDateString()}</p>
+                  </div>
+                  <Badge className={getActivityTypeColor(act.type)}>{act.type}</Badge>
                 </div>
-                <Badge className={getActivityTypeColor(act.type)}>{act.type}</Badge>
-              </div>
-            ))}
+              ))
+            ) : (
+              <p className="text-gray-500 dark:text-gray-400">No upcoming activities.</p>
+            )}
           </CardContent>
         </Card>
       </div>

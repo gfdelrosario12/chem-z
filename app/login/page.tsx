@@ -6,6 +6,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { ModeToggle } from "@/components/mode-toggle"
 import Link from "next/link"
 
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL!
+
 export default function LoginPage() {
   const [username, setUsername] = useState("")
   const [password, setPassword] = useState("")
@@ -19,33 +21,31 @@ export default function LoginPage() {
     setLoading(true)
 
     try {
-      const res = await fetch("http://localhost:8080/api/users/login", {
-        credentials: "include", // important to include HttpOnly JWT cookie
+      const res = await fetch(`${API_BASE}/users/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        credentials: "include", // send/receive HttpOnly cookie
         body: JSON.stringify({ username, password }),
       })
-      
-      if (res.ok) {
-        const data = await res.json()
-        console.log("✅ Login success:", data)
 
-        // Save in sessionStorage
-        if (data.firstName) sessionStorage.setItem("firstName", data.firstName)
-        if (data.role) sessionStorage.setItem("role", data.role)
-        if (data.email) sessionStorage.setItem("email", data.email)  // <-- save email
-
-        // Save in cookies
-        if (data.firstName) document.cookie = `firstName=${data.firstName}; path=/;`
-        if (data.role) document.cookie = `role=${data.role}; path=/;`
-        if (data.email) document.cookie = `email=${data.email}; path=/;`   // <-- save email
-
-        router.push("/dashboard")
-      } else {
+      if (!res.ok) {
         const message = await res.text()
         setError(message || "Invalid credentials")
+        return
       }
+
+      const data = await res.json()
+      console.log("✅ Login success:", data)
+
+      // Save safe UI info locally (optional)
+      if (data.firstName) localStorage.setItem("firstName", data.firstName)
+      if (data.role) localStorage.setItem("role", data.role)
+      if (data.email) localStorage.setItem("email", data.email)
+
+      // Redirect to dashboard
+      router.push("/dashboard")
     } catch (err) {
+      console.error(err)
       setError("Something went wrong. Try again.")
     } finally {
       setLoading(false)
@@ -115,7 +115,10 @@ export default function LoginPage() {
 
             <div className="mt-4 text-center text-sm">
               Don&apos;t have an account?{" "}
-              <Link href="/register" className="text-blue-600 hover:underline dark:text-blue-400">
+              <Link
+                href="/register"
+                className="text-blue-600 hover:underline dark:text-blue-400"
+              >
                 Sign up
               </Link>
             </div>

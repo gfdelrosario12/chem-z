@@ -56,7 +56,7 @@ export default function DashboardAdmin({ user }: { user: any }) {
                 ? `Admins: ${stats.admins}, Teachers: ${stats.teachers}, Students: ${stats.students}`
                 : "Loading..."}
             </p>
-            <Link href="/admin/users">
+            <Link href="/dashboard/users">
               <Button className="mt-2 w-full" variant="outline">
                 Manage Users
               </Button>
@@ -74,9 +74,9 @@ export default function DashboardAdmin({ user }: { user: any }) {
           <CardContent className="flex flex-col gap-2">
             <p className="text-2xl font-bold">{stats ? stats.courses : "..."}</p>
             <p className="text-sm text-gray-500">Active courses</p>
-            <Link href="/admin/classes">
+            <Link href="/dashboard/classes">
               <Button className="mt-2 w-full" variant="outline">
-                View Classes
+                Manager Classes
               </Button>
             </Link>
           </CardContent>
@@ -120,10 +120,10 @@ export default function DashboardAdmin({ user }: { user: any }) {
           </CardTitle>
         </CardHeader>
         <CardContent className="flex gap-4 flex-wrap">
-          <Link href="/admin/users">
+          <Link href="/dashboard/users">
             <Button variant="secondary">User Management</Button>
           </Link>
-          <Link href="/admin/classes">
+          <Link href="/dashboard/classes">
             <Button variant="secondary">Class Management</Button>
           </Link>
         </CardContent>
