@@ -22,7 +22,6 @@ import {
 } from "@/components/ui/card"
 
 interface FormData {
-  username: string;
   password: string;
   confirmPassword: string;
   email: string;
@@ -46,7 +45,6 @@ interface Role {
 
 const RegisterPage: React.FC = () => {
   const [formData, setFormData] = useState<FormData>({
-    username: "",
     password: "",
     confirmPassword: "",
     email: "",
@@ -147,7 +145,6 @@ const RegisterPage: React.FC = () => {
     const newErrors: FormErrors = {};
 
     // Required field validation
-    if (!formData.username.trim()) newErrors.username = "Username is required";
     if (!formData.password) newErrors.password = "Password is required";
     if (!formData.confirmPassword)
       newErrors.confirmPassword = "Please confirm your password";
@@ -189,11 +186,6 @@ const RegisterPage: React.FC = () => {
       newErrors.confirmPassword = "Passwords do not match";
     }
 
-    // Username validation
-    if (formData.username && formData.username.length < 3) {
-      newErrors.username = "Username must be at least 3 characters long";
-    }
-
     return newErrors;
   };
 
@@ -217,7 +209,6 @@ const RegisterPage: React.FC = () => {
       let apiData = { ...baseData };
       if (formData.role === "ADMIN") {
         apiData = {
-          username: baseData.username,
           password: baseData.password,
           email: baseData.email,
           role: baseData.role,
@@ -228,7 +219,6 @@ const RegisterPage: React.FC = () => {
         };
       } else if (formData.role === "STUDENT") {
         apiData = {
-          username: baseData.username,
           password: baseData.password,
           email: baseData.email,
           role: baseData.role,
@@ -239,7 +229,6 @@ const RegisterPage: React.FC = () => {
         };
       } else if (formData.role === "TEACHER") {
         apiData = {
-          username: baseData.username,
           password: baseData.password,
           email: baseData.email,
           role: baseData.role,
@@ -251,7 +240,7 @@ const RegisterPage: React.FC = () => {
       }
 
       const response = await fetch(
-        `${process.env.NEXT_PUBLIC_API_BASE_URL}/auth/register`,
+        `${process.env.NEXT_PUBLIC_API_BASE_URL}/users/register`,
         {
           method: "POST",
           headers: {
@@ -266,9 +255,7 @@ const RegisterPage: React.FC = () => {
       if (!response.ok) {
         if (response.status === 400 && result.message) {
           // Handle specific validation errors from backend
-          if (result.message.includes("username")) {
-            setErrors({ username: "Username already exists" });
-          } else if (result.message.includes("email")) {
+          if (result.message.includes("email")) {
             setErrors({ email: "Email already exists" });
           } else {
             setGeneralError(result.message);
@@ -284,7 +271,6 @@ const RegisterPage: React.FC = () => {
       // Success
       setSuccessMessage("Account created successfully! You can now sign in.");
       setFormData({
-        username: "",
         password: "",
         confirmPassword: "",
         email: "",
@@ -582,36 +568,6 @@ const RegisterPage: React.FC = () => {
                     className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-800 dark:text-gray-100 dark:border-gray-600"
                     placeholder="Middle name"
                   />
-                </div>
-
-                {/* Username */}
-                <div className="space-y-1">
-                  <label
-                    htmlFor="username"
-                    className="text-sm font-medium text-gray-700 dark:text-gray-200"
-                  >
-                    Username
-                  </label>
-                  <div className="relative">
-                    <UserCheck className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                    <input
-                      type="text"
-                      id="username"
-                      name="username"
-                      value={formData.username}
-                      onChange={handleChange}
-                      className={`w-full pl-10 pr-3 py-2 border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-800 dark:text-gray-100 dark:border-gray-600 ${errors.username
-                          ? "border-red-500 focus:ring-red-500 focus:border-red-500"
-                          : "border-gray-300"
-                        }`}
-                      placeholder="johndoe"
-                    />
-                  </div>
-                  {errors.username && (
-                    <p className="text-sm text-red-600 dark:text-red-400">
-                      {errors.username}
-                    </p>
-                  )}
                 </div>
 
                 {/* Email */}
