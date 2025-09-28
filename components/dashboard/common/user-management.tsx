@@ -41,6 +41,136 @@ export function UserManagement() {
     password: "",
   });
 
+  interface UserFormModalProps {
+    mode: "create" | "edit";
+    data: Partial<User> & { password?: string };
+    onChange: (data: Partial<User> & { password?: string }) => void;
+    onClose: () => void;
+    onSubmit: () => void;
+  }
+
+  function UserFormModal({ mode, data, onChange, onClose, onSubmit }: UserFormModalProps) {
+    return (
+      <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
+        <div className="bg-white dark:bg-gray-900 p-6 rounded-lg shadow-lg w-96">
+          <h2 className="text-xl font-bold mb-4 text-blue-600">
+            {mode === "create" ? "Create User" : "Update User"}
+          </h2>
+
+          {/* Role select (only when creating) */}
+          {mode === "create" && (
+            <select
+              value={data.role}
+              onChange={(e) => onChange({ ...data, role: e.target.value as any })}
+              className="w-full p-2 mb-2 border rounded bg-blue-50 dark:bg-gray-700 focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="ADMIN">Admin</option>
+              <option value="TEACHER">Teacher</option>
+              <option value="STUDENT">Student</option>
+            </select>
+          )}
+
+          {/* Username (only for editing) */}
+          {mode === "edit" && (
+            <input
+              type="text"
+              placeholder="Username"
+              value={data.username || ""}
+              readOnly
+              className="w-full p-2 mb-2 border rounded bg-gray-100 text-gray-600 cursor-not-allowed"
+            />
+          )}
+
+          {/* Password (only for creating) */}
+          {mode === "create" && (
+            <input
+              type="password"
+              placeholder="Password"
+              value={data.password || ""}
+              onChange={(e) => onChange({ ...data, password: e.target.value })}
+              className="w-full p-2 mb-2 border rounded focus:ring-2 focus:ring-blue-500"
+            />
+          )}
+
+          {/* Common fields */}
+          <input
+            type="text"
+            placeholder="First Name"
+            value={data.firstName || ""}
+            onChange={(e) => onChange({ ...data, firstName: e.target.value })}
+            className="w-full p-2 mb-2 border rounded focus:ring-2 focus:ring-blue-500"
+          />
+          <input
+            type="text"
+            placeholder="Middle Name"
+            value={data.middleName || ""}
+            onChange={(e) => onChange({ ...data, middleName: e.target.value })}
+            className="w-full p-2 mb-2 border rounded focus:ring-2 focus:ring-blue-500"
+          />
+          <input
+            type="text"
+            placeholder="Last Name"
+            value={data.lastName || ""}
+            onChange={(e) => onChange({ ...data, lastName: e.target.value })}
+            className="w-full p-2 mb-2 border rounded focus:ring-2 focus:ring-blue-500"
+          />
+          <input
+            type="email"
+            placeholder="Email"
+            value={data.email || ""}
+            onChange={(e) => onChange({ ...data, email: e.target.value })}
+            className="w-full p-2 mb-2 border rounded focus:ring-2 focus:ring-blue-500"
+          />
+
+          {/* Role-specific fields */}
+          {data.role === "ADMIN" && (
+            <input
+              type="text"
+              placeholder="Department (optional)"
+              value={(data as Admin).department || ""}
+              onChange={(e) => onChange({ ...data, department: e.target.value })}
+              className="w-full p-2 mb-2 border rounded focus:ring-2 focus:ring-blue-500"
+            />
+          )}
+          {data.role === "TEACHER" && (
+            <input
+              type="text"
+              placeholder="Subject (optional)"
+              value={(data as Teacher).subject || ""}
+              onChange={(e) => onChange({ ...data, subject: e.target.value })}
+              className="w-full p-2 mb-2 border rounded focus:ring-2 focus:ring-blue-500"
+            />
+          )}
+          {data.role === "STUDENT" && (
+            <input
+              type="text"
+              placeholder="Grade Level (optional)"
+              value={(data as Student).gradeLevel || ""}
+              onChange={(e) => onChange({ ...data, gradeLevel: e.target.value })}
+              className="w-full p-2 mb-2 border rounded focus:ring-2 focus:ring-blue-500"
+            />
+          )}
+
+          {/* Buttons */}
+          <div className="flex justify-end space-x-2 mt-4">
+            <button
+              onClick={onClose}
+              className="px-4 py-2 rounded bg-gray-300 hover:bg-gray-400"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={onSubmit}
+              className="px-4 py-2 rounded bg-blue-500 text-white hover:bg-blue-600"
+            >
+              {mode === "create" ? "Create" : "Update"}
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   useEffect(() => {
     fetch(`${API_BASE}/users`, { credentials: "include" })
       .then((res) => res.json())
@@ -240,191 +370,26 @@ export function UserManagement() {
 
       {/* Create Modal */}
       {showCreateModal && (
-        <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
-          <div className="bg-white dark:bg-gray-900 p-6 rounded-lg shadow-lg w-96">
-            <h2 className="text-xl font-bold mb-4 text-blue-600">Create User</h2>
-
-            <select
-              value={newUserData.role}
-              onChange={(e) =>
-                setNewUserData({ ...newUserData, role: e.target.value as any })
-              }
-              className="w-full p-2 mb-2 border rounded bg-blue-50 dark:bg-gray-700 focus:ring-2 focus:ring-blue-500 text-blue-900 dark:text-white"
-            >
-              <option value="ADMIN">Admin</option>
-              <option value="TEACHER">Teacher</option>
-              <option value="STUDENT">Student</option>
-            </select>
-
-            <input
-              type="password"
-              placeholder="Password"
-              value={newUserData.password || ""}
-              onChange={(e) => setNewUserData({ ...newUserData, password: e.target.value })}
-              className="w-full p-2 mb-2 border rounded focus:ring-2 focus:ring-blue-500"
-            />
-            <input
-              type="text"
-              placeholder="First Name"
-              value={newUserData.firstName || ""}
-              onChange={(e) => setNewUserData({ ...newUserData, firstName: e.target.value })}
-              className="w-full p-2 mb-2 border rounded focus:ring-2 focus:ring-blue-500"
-            />
-            <input
-              type="text"
-              placeholder="Middle Name"
-              value={newUserData.middleName || ""}
-              onChange={(e) => setNewUserData({ ...newUserData, middleName: e.target.value })}
-              className="w-full p-2 mb-2 border rounded focus:ring-2 focus:ring-blue-500"
-            />
-            <input
-              type="text"
-              placeholder="Last Name"
-              value={newUserData.lastName || ""}
-              onChange={(e) => setNewUserData({ ...newUserData, lastName: e.target.value })}
-              className="w-full p-2 mb-2 border rounded focus:ring-2 focus:ring-blue-500"
-            />
-            <input
-              type="email"
-              placeholder="Email"
-              value={newUserData.email || ""}
-              onChange={(e) => setNewUserData({ ...newUserData, email: e.target.value })}
-              className="w-full p-2 mb-2 border rounded focus:ring-2 focus:ring-blue-500"
-            />
-
-            {newUserData.role === "ADMIN" && (
-              <input
-                type="text"
-                placeholder="Department (optional)"
-                value={(newUserData as Admin).department || ""}
-                onChange={(e) => setNewUserData({ ...newUserData, department: e.target.value })}
-                className="w-full p-2 mb-2 border rounded focus:ring-2 focus:ring-blue-500"
-              />
-            )}
-            {newUserData.role === "TEACHER" && (
-              <input
-                type="text"
-                placeholder="Subject (optional)"
-                value={(newUserData as Teacher).subject || ""}
-                onChange={(e) => setNewUserData({ ...newUserData, subject: e.target.value })}
-                className="w-full p-2 mb-2 border rounded focus:ring-2 focus:ring-blue-500"
-              />
-            )}
-            {newUserData.role === "STUDENT" && (
-              <input
-                type="text"
-                placeholder="Grade Level (optional)"
-                value={(newUserData as Student).gradeLevel || ""}
-                onChange={(e) => setNewUserData({ ...newUserData, gradeLevel: e.target.value })}
-                className="w-full p-2 mb-2 border rounded focus:ring-2 focus:ring-blue-500"
-              />
-            )}
-
-            <div className="flex justify-end space-x-2 mt-4">
-              <button
-                onClick={() => setShowCreateModal(false)}
-                className="px-4 py-2 rounded bg-gray-300 hover:bg-gray-400"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleCreate}
-                className="px-4 py-2 rounded bg-blue-500 text-white hover:bg-blue-600"
-              >
-                Create
-              </button>
-            </div>
-          </div>
-        </div>
+        <UserFormModal
+          mode="create"
+          data={newUserData}
+          onChange={setNewUserData}
+          onClose={() => setShowCreateModal(false)}
+          onSubmit={handleCreate}
+        />
       )}
 
       {/* Edit Modal */}
       {editingUser && (
-        <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
-          <div className="bg-white dark:bg-gray-900 p-6 rounded-lg shadow-lg w-96">
-            <h2 className="text-xl font-bold mb-4 text-blue-600">Update User</h2>
-
-            <input
-              type="text"
-              placeholder="Username (read-only)"
-              value={formData.username || ""}
-              readOnly
-              className="w-full p-2 mb-2 border rounded focus:ring-2 focus:ring-blue-500 cursor-not-allowed"
-            />
-            <input
-              type="text"
-              placeholder="First Name"
-              value={formData.firstName || ""}
-              onChange={(e) => setFormData({ ...formData, firstName: e.target.value })}
-              className="w-full p-2 mb-2 border rounded focus:ring-2 focus:ring-blue-500"
-            />
-            <input
-              type="text"
-              placeholder="Middle Name"
-              value={formData.middleName || ""}
-              onChange={(e) => setFormData({ ...formData, middleName: e.target.value })}
-              className="w-full p-2 mb-2 border rounded focus:ring-2 focus:ring-blue-500"
-            />
-            <input
-              type="text"
-              placeholder="Last Name"
-              value={formData.lastName || ""}
-              onChange={(e) => setFormData({ ...formData, lastName: e.target.value })}
-              className="w-full p-2 mb-2 border rounded focus:ring-2 focus:ring-blue-500"
-            />
-            <input
-              type="email"
-              placeholder="Email"
-              value={formData.email || ""}
-              onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-              className="w-full p-2 mb-2 border rounded focus:ring-2 focus:ring-blue-500"
-            />
-
-            {editingUser.role === "ADMIN" && (
-              <input
-                type="text"
-                placeholder="Department (optional)"
-                value={(formData as Admin).department || ""}
-                onChange={(e) => setFormData({ ...formData, department: e.target.value })}
-                className="w-full p-2 mb-2 border rounded focus:ring-2 focus:ring-blue-500"
-              />
-            )}
-            {editingUser.role === "TEACHER" && (
-              <input
-                type="text"
-                placeholder="Subject (optional)"
-                value={(formData as Teacher).subject || ""}
-                onChange={(e) => setFormData({ ...formData, subject: e.target.value })}
-                className="w-full p-2 mb-2 border rounded focus:ring-2 focus:ring-blue-500"
-              />
-            )}
-            {editingUser.role === "STUDENT" && (
-              <input
-                type="text"
-                placeholder="Grade Level (optional)"
-                value={(formData as Student).gradeLevel || ""}
-                onChange={(e) => setFormData({ ...formData, gradeLevel: e.target.value })}
-                className="w-full p-2 mb-2 border rounded focus:ring-2 focus:ring-blue-500"
-              />
-            )}
-
-            <div className="flex justify-end space-x-2 mt-4">
-              <button
-                onClick={() => setEditingUser(null)}
-                className="px-4 py-2 rounded bg-gray-300 hover:bg-gray-400"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleUpdate}
-                className="px-4 py-2 rounded bg-blue-500 text-white hover:bg-blue-600"
-              >
-                Update
-              </button>
-            </div>
-          </div>
-        </div>
+        <UserFormModal
+          mode="edit"
+          data={formData}
+          onChange={setFormData}
+          onClose={() => setEditingUser(null)}
+          onSubmit={handleUpdate}
+        />
       )}
+
     </div>
   );
 }

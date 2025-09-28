@@ -30,7 +30,6 @@ const getNavigationItems = (role: string) => {
         { name: "Home", href: "/dashboard", icon: Home },
         { name: "Class Feed", href: "/dashboard/feed", icon: BookOpen },
         { name: "Grades", href: "/dashboard/grades", icon: BarChart3 },
-        { name: "Profile", href: "/dashboard/profile", icon: User },
       ]
     case "teacher":
       return [
@@ -39,7 +38,6 @@ const getNavigationItems = (role: string) => {
         { name: "My Classes", href: "/dashboard/classes", icon: GraduationCap },
         { name: "Students", href: "/dashboard/students", icon: Users },
         { name: "Grades", href: "/dashboard/grades", icon: BarChart3 },
-        { name: "Profile", href: "/dashboard/profile", icon: User },
       ]
     case "admin":
       return [
