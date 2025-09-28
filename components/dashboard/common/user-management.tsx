@@ -356,7 +356,7 @@ export function UserManagement() {
                     </button>
                     <button
                       onClick={() => handleDelete(user.id)}
-                      className="px-3 py-1 rounded-lg bg-gradient-to-r from-blue-700 to-blue-900 text-white font-medium shadow-md hover:from-blue-800 hover:to-blue-950 transition-all duration-200"
+                      className="px-3 py-1 rounded-lg bg-gradient-to-r from-red-500 to-red-700 text-white font-medium shadow-md hover:from-red-600 hover:to-red-800 transition-all duration-200"
                     >
                       Delete
                     </button>
