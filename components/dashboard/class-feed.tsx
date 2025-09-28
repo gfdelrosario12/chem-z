@@ -9,12 +9,7 @@ import { Beaker, Calendar } from "lucide-react"
 interface User {
   id: number
   username: string
-  email: string
   role: "admin" | "teacher" | "student"
-  firstName?: string
-  middleName?: string
-  lastName?: string
-  [key: string]: any
 }
 
 interface Course {
@@ -22,21 +17,20 @@ interface Course {
   courseName: string
   description: string
   teacher?: { id: number; firstName: string; lastName: string }
-  students?: { id: number; firstName: string; lastName: string }[]
 }
 
 export function ClassFeed() {
   const [user, setUser] = useState<User | null>(null)
-  const [searchQuery, setSearchQuery] = useState("")
-  const [sortBy, setSortBy] = useState("newest")
   const [courses, setCourses] = useState<Course[]>([])
   const [loading, setLoading] = useState(true)
+  const [searchQuery, setSearchQuery] = useState("")
+  const [sortBy, setSortBy] = useState<"newest" | "oldest">("newest")
 
   const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL
 
-  // Fetch user
+  // Fetch logged-in user
   useEffect(() => {
-    async function fetchUser() {
+    const fetchUser = async () => {
       try {
         const res = await fetch(`${API_BASE}/users/me`, { credentials: "include" })
         if (!res.ok) return setUser(null)
@@ -50,19 +44,25 @@ export function ClassFeed() {
     fetchUser()
   }, [API_BASE])
 
-  // Fetch courses
+  // Fetch courses based on role
   useEffect(() => {
-    if (!user || !user.id) return
+    if (!user) return
 
-    async function fetchCourses() {
+    const fetchCourses = async () => {
       try {
-        if (!user) return;
-        const res = await fetch(`${API_BASE}/students/${user.id}/courses`, {
-          credentials: "include",
-        })
+        let url = ""
+        if (user.role === "student") {
+          url = `${API_BASE}/students/${user.id}/courses`
+        } else if (user.role === "teacher") {
+          url = `${API_BASE}/teachers/${user.id}/courses`
+        } else {
+          url = `${API_BASE}/courses`
+        }
+
+        const res = await fetch(url, { credentials: "include" })
         if (!res.ok) throw new Error("Failed to fetch courses")
-        const courseList: Course[] = await res.json()
-        setCourses(courseList)
+        const data: Course[] = await res.json()
+        setCourses(data)
       } catch {
         setCourses([])
       } finally {
@@ -71,14 +71,15 @@ export function ClassFeed() {
     }
 
     fetchCourses()
-  }, [user?.id, API_BASE])
+  }, [user?.id, user?.role, API_BASE])
 
   // Filter + sort
   const filteredCourses = courses
-    .filter((course) =>
-      !searchQuery ||
-      course.courseName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      course.description.toLowerCase().includes(searchQuery.toLowerCase())
+    .filter(
+      (course) =>
+        !searchQuery ||
+        course.courseName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        course.description.toLowerCase().includes(searchQuery.toLowerCase())
     )
     .sort((a, b) => (sortBy === "newest" ? b.id - a.id : a.id - b.id))
 
@@ -86,14 +87,9 @@ export function ClassFeed() {
     <div className="space-y-6">
       {/* Header */}
       <div>
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-          Class Feed
-        </h1>
-        <p className="text-gray-600 dark:text-gray-400">
-          All your enrolled courses in one place
-        </p>
+        <h1 className="text-2xl font-bold">Class Feed</h1>
         {user && (
-          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+          <p className="text-sm text-gray-500 mt-1">
             Logged in as: <strong>{user.username}</strong> ({user.role})
           </p>
         )}
@@ -105,19 +101,26 @@ export function ClassFeed() {
       {/* Course Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
         {filteredCourses.map((course) => (
-          <Link key={course.id} href={`/courses/${course.id}`}>
-            <Card className="border border-gray-200 dark:border-gray-700 hover:shadow-lg transition cursor-pointer">
+          <Link
+            key={course.id}
+            href={
+              user?.role === "student"
+                ? `/dashboard/feed/student/${course.id}`
+                : `/dashboard/feed/teacher/${course.id}`
+            }
+          >
+            <Card className="border border-gray-200 hover:shadow-lg cursor-pointer transition">
               <CardHeader className="pb-3">
                 <p className="text-sm font-medium">
-                  {course.teacher ? `${course.teacher.firstName} ${course.teacher.lastName}` : "Unknown Teacher"}
+                  {course.teacher
+                    ? `${course.teacher.firstName} ${course.teacher.lastName}`
+                    : "Unknown Teacher"}
                 </p>
-                <p className="text-xs text-gray-500 dark:text-gray-400">Teacher</p>
+                <p className="text-xs text-gray-500">Teacher</p>
               </CardHeader>
               <CardContent>
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-                  {course.courseName}
-                </h3>
-                <p className="text-gray-600 dark:text-gray-400">{course.description}</p>
+                <h3 className="text-lg font-semibold">{course.courseName}</h3>
+                <p className="text-gray-600">{course.description}</p>
                 <div className="mt-3 flex gap-2">
                   <Badge variant="secondary">
                     <Beaker className="h-3 w-3 mr-1" />
@@ -134,9 +137,7 @@ export function ClassFeed() {
         ))}
 
         {!loading && filteredCourses.length === 0 && (
-          <p className="col-span-full text-center text-gray-500">
-            No courses found
-          </p>
+          <p className="col-span-full text-center text-gray-500">No courses found</p>
         )}
       </div>
     </div>
