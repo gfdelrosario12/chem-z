@@ -19,6 +19,7 @@ export interface Announcement {
 }
 
 export interface Activity {
+  fileUrl: string | undefined
   id: string
   title: string
   description: string
@@ -105,26 +106,6 @@ export const mockAnnouncements: Announcement[] = [
     date: "2024-01-14",
     priority: "medium",
     author: "Academic Office",
-  },
-]
-
-export const mockActivities: Activity[] = [
-  {
-    id: "1",
-    title: "Acid-Base Titration Lab",
-    description: "Perform titration experiments to determine the concentration of unknown solutions.",
-    dueDate: "2024-01-20",
-    type: "lab",
-    status: "pending",
-  },
-  {
-    id: "2",
-    title: "Chemical Bonding Assignment",
-    description: "Complete the worksheet on ionic and covalent bonding.",
-    dueDate: "2024-01-22",
-    type: "assignment",
-    status: "submitted",
-    grade: 85,
   },
 ]
 
