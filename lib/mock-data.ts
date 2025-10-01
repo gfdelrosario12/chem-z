@@ -19,6 +19,7 @@ export interface Announcement {
 }
 
 export interface Activity {
+  quizNumber: any
   fileUrl: string | undefined
   id: string
   title: string

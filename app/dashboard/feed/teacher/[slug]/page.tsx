@@ -1,10 +1,17 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Activity } from "@/lib/mock-data";
+type Activity = {
+  id: number | string;
+  title: string;
+  description: string;
+  type: "QUIZ" | "ACTIVITY" | "lab" | "assignment" | "project";
+  quizNumber?: number;
+  fileUrl?: string;
+};
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
@@ -15,6 +22,7 @@ type ActivityType = "QUIZ" | "ACTIVITY";
 
 export default function CreateActivityPage() {
   const params = useParams();
+  const router = useRouter();
   const courseId = Array.isArray(params.slug) ? params.slug[0] : params.slug;
 
   const [open, setOpen] = useState(false);
@@ -196,20 +204,35 @@ export default function CreateActivityPage() {
           ) : activities.length > 0 ? (
             activities.map((activity) => (
               <Card key={activity.id} className="bg-gray-800 border-gray-700">
-                <CardHeader className="flex flex-row justify-between items-center">
-                  <div>
+                <CardHeader className="flex flex-col sm:flex-row justify-between items-start sm:items-center">
+                  {/* Left section: title & type */}
+                  <div className="flex flex-col">
                     <CardTitle className="text-xl font-semibold">{activity.title}</CardTitle>
                     <div className="mt-1 text-sm text-gray-400">{activity.type.charAt(0).toUpperCase() + activity.type.slice(1)}</div>
                   </div>
-                  <Button
-                    variant="destructive"
-                    size="sm"
-                    className="text-white hover:bg-red-700"
-                    onClick={() => handleDelete(Number(activity.id))}
-                  >
-                    Delete
-                  </Button>
+
+                  {/* Right section: buttons */}
+                  <div className="flex gap-2 mt-2 sm:mt-0">
+                    {activity.type === "QUIZ" && activity.quizNumber && (
+                      <Button
+                        size="sm"
+                        className="bg-green-600 hover:bg-green-700 text-white"
+                        onClick={() => router.push(`/dashboard/quiz/${activity.quizNumber}`)}
+                      >
+                        View Simulation
+                      </Button>
+                    )}
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      className="text-white hover:bg-red-700"
+                      onClick={() => handleDelete(Number(activity.id))}
+                    >
+                      Delete
+                    </Button>
+                  </div>
                 </CardHeader>
+
                 <CardContent className="space-y-2 text-gray-300">
                   <p>{activity.description}</p>
                   {activity.fileUrl && (
@@ -219,6 +242,7 @@ export default function CreateActivityPage() {
                   )}
                 </CardContent>
               </Card>
+
             ))
           ) : (
             <div className="text-center p-8 border border-dashed border-gray-700 rounded-lg">

@@ -1,134 +1,113 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useParams } from "next/navigation";
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { useParams, useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 type Activity = {
-  id: number;
+  id: number | string;
   title: string;
   description: string;
+  type: "QUIZ" | "ACTIVITY" | "lab" | "assignment" | "project";
+  quizNumber?: number;
   fileUrl?: string;
-  type: "QUIZ" | "ACTIVITY";
 };
 
-export default function TeacherClassFeed() {
-  const { slug } = useParams(); // courseId
+export default function ClassFeedPage() {
+  const params = useParams();
+  const router = useRouter();
+  const courseId = Array.isArray(params.slug) ? params.slug[0] : params.slug;
+
   const [activities, setActivities] = useState<Activity[]>([]);
-  const [loading, setLoading] = useState<boolean>(true);
+  const [loading, setLoading] = useState(true);
 
-  const [title, setTitle] = useState("");
-  const [description, setDescription] = useState("");
-  const [type, setType] = useState<"QUIZ" | "ACTIVITY">("ACTIVITY");
+  const isValidCourseId = (id: string | undefined): id is string => {
+    return id !== undefined && id !== null && id.toString() !== "undefined";
+  };
 
-  // Fetch activities when slug changes
   useEffect(() => {
-    if (slug) fetchActivities();
-  }, [slug]);
+    if (isValidCourseId(courseId)) fetchActivities(courseId);
+  }, [courseId]);
 
-  const fetchActivities = async () => {
+  const fetchActivities = async (id: string) => {
     try {
       setLoading(true);
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/courses/${slug}/activities`);
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_API_BASE_URL}/activities/course/${id}`
+      );
       if (!res.ok) throw new Error("Failed to fetch activities");
       const data = await res.json();
-
-      // Handle cases where data is not an array
       setActivities(Array.isArray(data) ? data : data.activities ?? []);
     } catch (err) {
-      console.error("Error fetching activities:", err);
+      console.error(err);
       setActivities([]);
     } finally {
       setLoading(false);
     }
   };
 
-  const handleCreateActivity = async () => {
-    if (!title.trim()) return alert("Title is required");
-
-    try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/courses/${slug}/activities`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title, description, type }),
-      });
-
-      if (!res.ok) throw new Error("Failed to create activity");
-      const newActivity: Activity = await res.json();
-
-      setActivities((prev) => [newActivity, ...prev]);
-      setTitle("");
-      setDescription("");
-      setType("ACTIVITY");
-    } catch (err) {
-      console.error("Error creating activity:", err);
-      alert("Failed to create activity. Check console for details.");
-    }
-  };
-
   return (
-    <div className="p-6 max-w-4xl mx-auto">
-      <h1 className="text-2xl font-bold mb-4">Class Feed</h1>
+    <div className="min-h-screen p-6 bg-gray-900 text-white">
+      <div className="max-w-4xl mx-auto space-y-8">
+        <h1 className="text-3xl font-bold">Class Feed</h1>
 
-      {/* Create Activity Form */}
-      <div className="mb-6 p-4 border rounded shadow-sm bg-white">
-        <h2 className="text-lg font-semibold mb-2">Create Activity</h2>
-        <input
-          type="text"
-          placeholder="Title"
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
-          className="w-full mb-2 p-2 border rounded"
-        />
-        <textarea
-          placeholder="Description"
-          value={description}
-          onChange={(e) => setDescription(e.target.value)}
-          className="w-full mb-2 p-2 border rounded"
-        />
-        <select
-          value={type}
-          onChange={(e) => setType(e.target.value as "QUIZ" | "ACTIVITY")}
-          className="mb-2 p-2 border rounded"
-        >
-          <option value="ACTIVITY">Activity</option>
-          <option value="QUIZ">Quiz</option>
-        </select>
-        <Button onClick={handleCreateActivity}>Create Activity</Button>
-      </div>
+        <div className="space-y-4">
+          {loading ? (
+            <p className="text-center text-gray-400">Loading activities...</p>
+          ) : activities.length > 0 ? (
+            activities.map((activity) => (
+              <Card
+                key={activity.id}
+                className="bg-gray-800 border-gray-700"
+              >
+                <CardHeader className="flex flex-col sm:flex-row justify-between items-start sm:items-center">
+                  <div className="flex flex-col">
+                    <CardTitle className="text-xl font-semibold">
+                      {activity.title}
+                    </CardTitle>
+                    <div className="mt-1 text-sm text-gray-400">
+                      {activity.type.charAt(0).toUpperCase() +
+                        activity.type.slice(1)}
+                    </div>
+                  </div>
 
-      {/* Activities List */}
-      <div className="space-y-4">
-        {loading && <p>Loading activities...</p>}
+                  {activity.type === "QUIZ" && activity.quizNumber && (
+                    <Button
+                      size="sm"
+                      className="bg-green-600 hover:bg-green-700 text-white"
+                      onClick={() =>
+                        router.push(`/dashboard/quiz/${activity.quizNumber}`)
+                      }
+                    >
+                      View Simulation
+                    </Button>
+                  )}
+                </CardHeader>
 
-        {!loading && activities.length === 0 && (
-          <p className="text-gray-500">No activities yet for this class.</p>
-        )}
-
-        {!loading &&
-          Array.isArray(activities) &&
-          activities.map((activity) => (
-            <Card key={activity.id} className="shadow-sm">
-              <CardHeader>
-                <CardTitle>{activity.title}</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p>{activity.description}</p>
-                {activity.fileUrl && (
-                  <a
-                    href={activity.fileUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-blue-600 underline"
-                  >
-                    View File
-                  </a>
-                )}
-                <p className="mt-1 text-sm text-gray-500">{activity.type}</p>
-              </CardContent>
-            </Card>
-          ))}
+                <CardContent className="space-y-2 text-gray-300">
+                  <p>{activity.description}</p>
+                  {activity.fileUrl && (
+                    <a
+                      href={activity.fileUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-blue-400 hover:underline"
+                    >
+                      View File
+                    </a>
+                  )}
+                </CardContent>
+              </Card>
+            ))
+          ) : (
+            <div className="text-center p-8 border border-dashed border-gray-700 rounded-lg">
+              <p className="text-gray-500">
+                No activities found for this class.
+              </p>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
