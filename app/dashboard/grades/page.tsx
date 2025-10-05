@@ -1,5 +1,5 @@
-import { GradeView } from "@/components/dashboard/grade-view"
+import { GradesView } from "@/components/dashboard/grade-view"
 
 export default function GradesPage() {
-  return <GradeView />
+  return <GradesView />
 }

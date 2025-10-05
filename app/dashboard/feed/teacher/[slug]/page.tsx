@@ -4,21 +4,22 @@ import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-type Activity = {
-  id: number | string;
-  title: string;
-  description: string;
-  type: "QUIZ" | "ACTIVITY" | "lab" | "assignment" | "project";
-  quizNumber?: number;
-  fileUrl?: string;
-};
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 
-type ActivityType = "QUIZ" | "ACTIVITY";
+type ActivityType = "QUIZ" | "LAB" | "ACTIVITY";
+
+type Activity = {
+  id: number | string;
+  title: string;
+  description: string;
+  type: ActivityType;
+  activityNumber?: number;
+  fileUrl?: string;
+};
 
 export default function CreateActivityPage() {
   const params = useParams();
@@ -30,15 +31,23 @@ export default function CreateActivityPage() {
   const [description, setDescription] = useState("");
   const [type, setType] = useState<ActivityType>("QUIZ");
   const [file, setFile] = useState<File | null>(null);
-  const [quizNumber, setQuizNumber] = useState<number | undefined>(1);
+  const [activityNumber, setActivityNumber] = useState<number>(1);
   const [submitting, setSubmitting] = useState(false);
 
   const [activities, setActivities] = useState<Activity[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const isValidCourseId = (id: string | undefined): id is string => {
-    return id !== undefined && id !== null && id.toString() !== "undefined";
-  };
+  const isValidCourseId = (id: string | undefined): id is string =>
+    id !== undefined && id !== null && id.toString() !== "undefined";
+
+  // Reset number when type changes
+  useEffect(() => {
+    if (type === "QUIZ" || type === "LAB") {
+      setActivityNumber(1);
+    } else {
+      setFile(null); // reset file for ACTIVITY
+    }
+  }, [type]);
 
   useEffect(() => {
     if (isValidCourseId(courseId)) fetchActivities(courseId);
@@ -64,7 +73,7 @@ export default function CreateActivityPage() {
     setDescription("");
     setType("QUIZ");
     setFile(null);
-    setQuizNumber(1);
+    setActivityNumber(1);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -73,25 +82,27 @@ export default function CreateActivityPage() {
 
     setSubmitting(true);
     try {
-      let fileUrl: string | null = null;
+      let fileUrl: string | undefined;
 
+      // Only ACTIVITY has file upload
       if (type === "ACTIVITY" && file) {
-        const presignRes = await fetch(
-          `${process.env.NEXT_PUBLIC_API_BASE_URL}/activities/presigned-url`,
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ fileName: file.name, contentType: file.type }),
-          }
-        );
+        const presignRes = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/activities/presigned-url`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ fileName: file.name, contentType: file.type }),
+        });
         const { url } = await presignRes.json();
         await fetch(url, { method: "PUT", headers: { "Content-Type": file.type }, body: file });
         fileUrl = url.split("?")[0];
       }
 
-      const payload: any = { title, description, type };
-      if (type === "ACTIVITY") payload.fileUrl = fileUrl;
-      if (type === "QUIZ") payload.quizNumber = quizNumber;
+      const payload: any = {
+        title,
+        description,
+        type,
+        activityNumber: type === "QUIZ" || type === "LAB" ? activityNumber : undefined,
+        fileUrl: type === "ACTIVITY" ? fileUrl : undefined,
+      };
 
       const res = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/activities/course/${courseId}`, {
         method: "POST",
@@ -128,6 +139,7 @@ export default function CreateActivityPage() {
 
   const renderInputs = () => (
     <div className="space-y-4">
+      {/* Title & Description */}
       <div>
         <Label htmlFor="title">Title</Label>
         <Input id="title" type="text" placeholder="Title" value={title} onChange={(e) => setTitle(e.target.value)} />
@@ -136,42 +148,48 @@ export default function CreateActivityPage() {
         <Label htmlFor="description">Description</Label>
         <Textarea id="description" placeholder="Description" value={description} onChange={(e) => setDescription(e.target.value)} />
       </div>
+
+      {/* Type Selector */}
       <div>
         <Label htmlFor="type">Activity Type</Label>
         <Select value={type} onValueChange={(val) => setType(val as ActivityType)}>
           <SelectTrigger><SelectValue placeholder="Select type" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="QUIZ">Quiz</SelectItem>
+            <SelectItem value="LAB">Lab</SelectItem>
             <SelectItem value="ACTIVITY">Activity</SelectItem>
           </SelectContent>
         </Select>
       </div>
-      {type === "QUIZ" ? (
-        <div>
-          <Label htmlFor="quizNumber">Quiz Number</Label>
-          <Input id="quizNumber" type="number" min={1} value={quizNumber} onChange={(e) => setQuizNumber(Number(e.target.value))} />
-        </div>
-      ) : (
-        <div>
-          <Label htmlFor="file">File Upload</Label>
-          <div className="flex items-center gap-2">
-            <label
-              htmlFor="file"
-              className="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded cursor-pointer"
-            >
-              {file ? "Change File" : "Choose File"}
-            </label>
-            {file && <span className="text-gray-300 truncate max-w-xs">{file.name}</span>}
-          </div>
-          <Input
-            id="file"
-            type="file"
-            className="hidden"
-            onChange={(e) => setFile(e.target.files?.[0] || null)}
-          />
-        </div>
 
+      {/* Number Selection only for Quiz / Lab */}
+      {(type === "QUIZ" || type === "LAB") && (
+        <div>
+          <Label htmlFor="activityNumber">{type === "QUIZ" ? "Quiz Number" : "Lab Number"}</Label>
+          <Select
+            value={activityNumber.toString()}
+            onValueChange={(val) => setActivityNumber(Number(val))}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder={`Select ${type === "QUIZ" ? "quiz" : "lab"} number`} />
+            </SelectTrigger>
+            <SelectContent>
+              {[1, 2].map((n) => (
+                <SelectItem key={n} value={n.toString()}>{n}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
       )}
+
+      {/* File upload only for Activity */}
+      {type === "ACTIVITY" && (
+        <div>
+          <Label htmlFor="file">Upload File</Label>
+          <Input type="file" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
+        </div>
+      )}
+
       <div className="flex gap-2">
         <Button type="submit" disabled={submitting} className="bg-indigo-600 hover:bg-indigo-700 text-white">
           {submitting ? "Creating..." : "Create Activity"}
@@ -187,7 +205,7 @@ export default function CreateActivityPage() {
           <h1 className="text-3xl font-bold">Class Feed</h1>
           <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild>
-              <Button onClick={() => resetForm()} className="bg-indigo-600 hover:bg-indigo-700 text-white">Create Activity</Button>
+              <Button onClick={resetForm} className="bg-indigo-600 hover:bg-indigo-700 text-white">Create Activity</Button>
             </DialogTrigger>
             <DialogContent className="sm:max-w-md bg-gray-800 text-white">
               <DialogHeader>
@@ -205,29 +223,14 @@ export default function CreateActivityPage() {
             activities.map((activity) => (
               <Card key={activity.id} className="bg-gray-800 border-gray-700">
                 <CardHeader className="flex flex-col sm:flex-row justify-between items-start sm:items-center">
-                  {/* Left section: title & type */}
                   <div className="flex flex-col">
                     <CardTitle className="text-xl font-semibold">{activity.title}</CardTitle>
-                    <div className="mt-1 text-sm text-gray-400">{activity.type.charAt(0).toUpperCase() + activity.type.slice(1)}</div>
+                    <div className="mt-1 text-sm text-gray-400">
+                      {activity.type} {activity.activityNumber ? `#${activity.activityNumber}` : ""}
+                    </div>
                   </div>
-
-                  {/* Right section: buttons */}
                   <div className="flex gap-2 mt-2 sm:mt-0">
-                    {activity.type === "QUIZ" && activity.quizNumber && (
-                      <Button
-                        size="sm"
-                        className="bg-green-600 hover:bg-green-700 text-white"
-                        onClick={() => router.push(`/dashboard/quiz/${activity.quizNumber}`)}
-                      >
-                        View Simulation
-                      </Button>
-                    )}
-                    <Button
-                      variant="destructive"
-                      size="sm"
-                      className="text-white hover:bg-red-700"
-                      onClick={() => handleDelete(Number(activity.id))}
-                    >
+                    <Button variant="destructive" size="sm" className="text-white hover:bg-red-700" onClick={() => handleDelete(Number(activity.id))}>
                       Delete
                     </Button>
                   </div>
@@ -242,7 +245,6 @@ export default function CreateActivityPage() {
                   )}
                 </CardContent>
               </Card>
-
             ))
           ) : (
             <div className="text-center p-8 border border-dashed border-gray-700 rounded-lg">

@@ -1,6 +1,10 @@
 "use client";
 
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from "react";
+
+interface SolutionsLabProps {
+  activityID: string; // ✅ NEW PROP
+}
 
 const CANVAS_WIDTH = 600;
 const CANVAS_HEIGHT = 350;
@@ -15,47 +19,84 @@ const getSolubilityLimit = (T: number) => {
   return SOLUBILITY_25C + slope * (T - 25);
 };
 
-type PhaseType = 'Unsaturated' | 'Saturated' | 'Supersaturated';
+type PhaseType = "Unsaturated" | "Saturated" | "Supersaturated";
 
 interface Notification {
   message: string;
   color: string;
 }
 
-const CHECKPOINTS: { [key: string]: { name: string; instruction: string; requiredState: (n: number, M: number, m: number, T: number, Phase: PhaseType, isSeeded?: boolean) => boolean } } = {
+const CHECKPOINTS: {
+  [key: string]: {
+    name: string;
+    instruction: string;
+    feedback: string; // ✅ NEW
+    requiredState: (
+      n: number,
+      M: number,
+      m: number,
+      T: number,
+      Phase: PhaseType,
+      isSeeded?: boolean
+    ) => boolean;
+  };
+} = {
   unsaturated_prepare: {
-    name: 'CP1: Prepare Unsaturated (1 pt)',
-    instruction: "Set T=25°C, V=100mL. Add NaCl=2.0g. Task: Record n, M. Screenshot ions.",
-    requiredState: (n, M, m, T, Phase) => T === 25 && n > 0.033 && n < 0.036 && Phase === 'Unsaturated',
+    name: "CP1: Prepare Unsaturated (1 pt)",
+    instruction:
+      "Set T=25°C, V=100mL. Add NaCl=2.0g. Task: Record n, M. Screenshot ions.",
+    feedback: "Great! You correctly prepared an unsaturated solution.", // ✅ NEW
+    requiredState: (n, M, m, T, Phase) =>
+      T === 25 && n > 0.033 && n < 0.036 && Phase === "Unsaturated",
   },
   approach_saturation: {
-    name: 'CP2: Approach Saturation (1 pt)',
-    instruction: "Add solute until solid remains (Saturated). Task: Record total dissolved mass, n, M. Screenshot.",
-    requiredState: (n, M, m, T, Phase) => T === 25 && n > 0.61 && n < 0.62 && Phase === 'Saturated',
+    name: "CP2: Approach Saturation (1 pt)",
+    instruction:
+      "Add solute until solid remains (Saturated). Task: Record total dissolved mass, n, M. Screenshot.",
+    feedback: "Good job! The solution is now saturated.", // ✅ NEW
+    requiredState: (n, M, m, T, Phase) =>
+      T === 25 && n > 0.61 && n < 0.62 && Phase === "Saturated",
   },
   supersaturation_ready: {
-    name: 'CP3a: Supersaturation Prep (1 pt)',
-    instruction: "Heat to 60°C, dissolve all. Cool to 25°C without disturbance. Status: Supersaturated.",
-    requiredState: (n, M, m, T, Phase) => T === 25 && n > 0.61 && Phase === 'Supersaturated',
+    name: "CP3a: Supersaturation Prep (1 pt)",
+    instruction:
+      "Heat to 60°C, dissolve all. Cool to 25°C without disturbance. Status: Supersaturated.",
+    feedback: "Excellent! You achieved a supersaturated solution.", // ✅ NEW
+    requiredState: (n, M, m, T, Phase) =>
+      T === 25 && n > 0.61 && Phase === "Supersaturated",
   },
   supersaturation_seeded: {
-    name: 'CP3b: Seeding Effect (1 pt)',
-    instruction: "Add Seed crystal in Supersaturated state. Task: Screenshot seeding effect.",
+    name: "CP3b: Seeding Effect (1 pt)",
+    instruction:
+      "Add Seed crystal in Supersaturated state. Task: Screenshot seeding effect.",
+    feedback: "Seed crystal added! Rapid crystallization observed.", // ✅ NEW
     requiredState: (n, M, m, T, Phase, isSeeded) => !!isSeeded,
   },
   temp_effect_plot: {
-    name: 'CP4: Temperature Effect (1 pt)',
-    instruction: "Repeat saturation at 25°C, 40°C, 60°C. Task: Plot 3 points on curve.",
+    name: "CP4: Temperature Effect (1 pt)",
+    instruction:
+      "Repeat saturation at 25°C, 40°C, 60°C. Task: Plot 3 points on curve.",
+    feedback: "Temperature dependence plotted successfully.", // ✅ NEW
     requiredState: () => false,
   },
   molality_extension: {
-    name: 'CP5: Molality vs. Molarity (Bonus 1 pt)',
+    name: "CP5: Molality vs. Molarity (Bonus 1 pt)",
     instruction: "Set V=250mL, Add 7.3g NaCl. Task: Record M and m.",
-    requiredState: (n, M, m, T, Phase) => Math.abs(n - 0.125) < 0.002 && Math.abs(M - 0.50) < 0.02 && Math.abs(m - 0.50) < 0.02,
+    feedback: "Bonus! Molality vs. Molarity relationship recorded.", // ✅ NEW
+    requiredState: (n, M, m, T, Phase) =>
+      Math.abs(n - 0.125) < 0.002 &&
+      Math.abs(M - 0.5) < 0.02 &&
+      Math.abs(m - 0.5) < 0.02,
   },
 };
 
-const SolutionsLab: React.FC = () => {
+const SolutionsLab: React.FC<SolutionsLabProps> = ({ activityID }) => {
+  // ✅ Log when activityID is received
+  useEffect(() => {
+    console.log("SolutionsLab loaded for activityID:", activityID);
+  }, [activityID]);
+
+  // --- existing states and logic ---
   const [soluteMass, setSoluteMass] = useState(2.0);
   const [solventVolume, setSolventVolume] = useState(100);
   const [temperature, setTemperature] = useState(25);
@@ -63,10 +104,14 @@ const SolutionsLab: React.FC = () => {
   const [isCooled, setIsCooled] = useState(false);
   const [wasHeated, setWasHeated] = useState(false);
   const [points, setPoints] = useState(0);
-  const [completedCheckpoints, setCompletedCheckpoints] = useState<Record<string, boolean>>({});
+  const [feedbacks, setFeedbacks] = useState<Record<string, string>>({});
+  const [completedCheckpoints, setCompletedCheckpoints] = useState<
+    Record<string, boolean>
+  >({});
   const [notification, setNotification] = useState<Notification>({
-    message: 'Welcome to the Solutions Lab! Start by preparing an unsaturated solution (CP1).',
-    color: 'text-yellow-400',
+    message:
+      "Welcome to the Solutions Lab! Start by preparing an unsaturated solution (CP1).",
+    color: "text-yellow-400",
   });
 
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -75,11 +120,11 @@ const SolutionsLab: React.FC = () => {
   const n_mol = soluteMass / NACL_MOLAR_MASS_G_MOL;
   const solventMass_kg = solventVolume / 1000;
   const solubilityLimit_g = getSolubilityLimit(temperature) * (solventVolume / 100);
-  
+
   let dissolvedMass = Math.min(soluteMass, solubilityLimit_g);
   let currentPhase: PhaseType = 'Unsaturated';
   let undissolvedMass = 0;
-  
+
   // Check for supersaturation first (special cooled state)
   if (isCooled && temperature === 25) {
     const solubilityAt25C = getSolubilityLimit(25) * (solventVolume / 100);
@@ -96,7 +141,7 @@ const SolutionsLab: React.FC = () => {
       dissolvedMass = solubilityLimit_g;
     }
   }
-  
+
   const dissolved_n_mol = dissolvedMass / NACL_MOLAR_MASS_G_MOL;
   const molarity = dissolved_n_mol / (solventVolume / 1000);
   const molality = dissolved_n_mol / solventMass_kg;
@@ -114,13 +159,13 @@ const SolutionsLab: React.FC = () => {
       if (currentPhase !== 'Unsaturated') return "Should be Unsaturated - try less solute";
       return "Values look good! Click Submit Checkpoint";
     }
-    
+
     if (!completedCheckpoints['approach_saturation']) {
       if (temperature !== 25) return "Keep temperature at 25°C";
       if (currentPhase !== 'Saturated') return "Add more solute until you see solid at bottom (Saturated)";
       return "You have a saturated solution! Click Submit Checkpoint";
     }
-    
+
     if (!completedCheckpoints['supersaturation_ready']) {
       if (temperature < 50 && !wasHeated) return "First, heat to 60°C to dissolve more solute";
       if (temperature >= 50 && soluteMass < 37) return "Add solute to ~37g while hot";
@@ -128,18 +173,18 @@ const SolutionsLab: React.FC = () => {
       if (currentPhase !== 'Supersaturated') return "Should be Supersaturated - heat to 60°C, add ~37g, cool to 25°C";
       return "Supersaturated! Click Submit Checkpoint";
     }
-    
+
     if (!completedCheckpoints['supersaturation_seeded']) {
       if (currentPhase !== 'Supersaturated') return "Need Supersaturated solution first (complete CP3a)";
       return "Click 'Add Seed Crystal' button, then Submit Checkpoint";
     }
-    
+
     if (!completedCheckpoints['molality_extension']) {
       if (Math.abs(solventVolume - 250) > 1) return "Set volume to 250mL";
       if (Math.abs(soluteMass - 7.3) > 0.1) return "Set solute mass to 7.3g";
       return "Values correct! Click Submit Checkpoint";
     }
-    
+
     return "All checkpoints complete! Try exploring different conditions.";
   };
 
@@ -150,13 +195,13 @@ const SolutionsLab: React.FC = () => {
   useEffect(() => {
     const solubilityAt25C = getSolubilityLimit(25) * (solventVolume / 100);
     const massExceeds25CSolubility = soluteMass > solubilityAt25C + 0.5;
-    
+
     // When cooled to 25°C with excess solute that was dissolved at higher temp
     if (temperature === 25 && massExceeds25CSolubility && wasHeated && !isCooled) {
       setIsCooled(true);
       showNotification('Supersaturation achieved! Solution is UNSTABLE. Add seed crystal for CP3b!', 'red', 6000);
     }
-    
+
     // Reset supersaturation if heated again
     if (temperature > 30 && isCooled) {
       setIsCooled(false);
@@ -166,7 +211,6 @@ const SolutionsLab: React.FC = () => {
   useEffect(() => {
     if (isSeeded && currentPhase === 'Supersaturated') {
       setSoluteMass(solubilityLimit_g);
-      setIsSeeded(false);
       setIsCooled(false);
       setWasHeated(false);
       showNotification('Crystallization triggered! The solution has returned to a Saturated state.', 'red', 5000);
@@ -264,34 +308,46 @@ const SolutionsLab: React.FC = () => {
     setSolventVolume(newV);
   };
 
-  const submitCheckpoint = () => {
-    let taskKey = '';
+  const submitCheckpoint = async () => {
+    let taskKey = "";
     let pointsAwarded = 1;
 
     for (const key in CHECKPOINTS) {
       const criteria = CHECKPOINTS[key].requiredState;
-      if (criteria(dissolved_n_mol, molarity, molality, temperature, currentPhase, isSeeded)) {
+      if (
+        criteria(
+          n_mol,
+          n_mol / (solventVolume / 1000),
+          n_mol / solventMass_kg,
+          temperature,
+          "Unsaturated"
+        )
+      ) {
         taskKey = key;
-        pointsAwarded = key === 'supersaturation_ready' ? 2 : 1;
+        pointsAwarded = key === "supersaturation_ready" ? 2 : 1;
+        setFeedbacks(prev => ({ ...prev, [key]: CHECKPOINTS[key].feedback }));
         break;
       }
     }
 
-    if (!taskKey && currentPhase === 'Supersaturated' && !completedCheckpoints['supersaturation_seeded']) {
-      showNotification('Hint: Click the "Add Seed Crystal" button and then submit CP3b.', 'cyan', 5000);
-      return;
-    }
-
     if (taskKey) {
-      if (!completedCheckpoints[taskKey]) {
-        setPoints(p => p + pointsAwarded);
-        setCompletedCheckpoints(prev => ({ ...prev, [taskKey]: true }));
-        showNotification(`${CHECKPOINTS[taskKey].name} successfully submitted! (+${pointsAwarded} Pt)`, 'lime', 5000);
-      } else {
-        showNotification(`${CHECKPOINTS[taskKey].name} already completed. No points awarded.`, 'orange');
+      // ✅ send to backend with activityID if needed
+      try {
+        await fetch(
+          `http://localhost:8080/api/activities/${activityID}/checkpoints`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              checkpoint: taskKey,
+              pointsAwarded,
+            }),
+          }
+        );
+        console.log("Checkpoint logged for", activityID, taskKey);
+      } catch (err) {
+        console.error("Failed to save checkpoint:", err);
       }
-    } else {
-      showNotification('Current state does not match a defined checkpoint task.', 'red', 5000);
     }
   };
 
@@ -327,33 +383,33 @@ const SolutionsLab: React.FC = () => {
     <div className="flex justify-center gap-4 flex-wrap p-3 bg-gray-700 rounded-lg">
       <div className="text-center p-2 bg-gray-600 rounded-lg w-40">
         <label className="block text-sm mb-2 font-medium text-yellow-300">Solute Mass (g)</label>
-        <input 
-          type="text" 
-          value={soluteMass.toFixed(1)} 
-          onChange={handleMassChange} 
-          className="w-full text-center mb-1 bg-white text-gray-900 border-2 border-yellow-400 rounded text-base p-1 font-bold focus:outline-none focus:ring-2 focus:ring-yellow-300" 
+        <input
+          type="text"
+          value={soluteMass.toFixed(1)}
+          onChange={handleMassChange}
+          className="w-full text-center mb-1 bg-white text-gray-900 border-2 border-yellow-400 rounded text-base p-1 font-bold focus:outline-none focus:ring-2 focus:ring-yellow-300"
         />
         <input type="range" min="0" max="70" step="0.1" value={soluteMass} onChange={handleMassChange} className="w-full" />
       </div>
 
       <div className="text-center p-2 bg-gray-600 rounded-lg w-40">
         <label className="block text-sm mb-2 font-medium text-yellow-300">Temperature (°C)</label>
-        <input 
-          type="text" 
-          value={temperature} 
-          onChange={handleTemperatureChange} 
-          className="w-full text-center mb-1 bg-white text-gray-900 border-2 border-yellow-400 rounded text-base p-1 font-bold focus:outline-none focus:ring-2 focus:ring-yellow-300" 
+        <input
+          type="text"
+          value={temperature}
+          onChange={handleTemperatureChange}
+          className="w-full text-center mb-1 bg-white text-gray-900 border-2 border-yellow-400 rounded text-base p-1 font-bold focus:outline-none focus:ring-2 focus:ring-yellow-300"
         />
         <input type="range" min="25" max="80" value={temperature} onChange={handleTemperatureChange} className="w-full" />
       </div>
 
       <div className="text-center p-2 bg-gray-600 rounded-lg w-40">
         <label className="block text-sm mb-2 font-medium text-yellow-300">Volume (mL)</label>
-        <input 
-          type="text" 
-          value={solventVolume} 
-          onChange={handleVolumeChange} 
-          className="w-full text-center mb-1 bg-white text-gray-900 border-2 border-yellow-400 rounded text-base p-1 font-bold focus:outline-none focus:ring-2 focus:ring-yellow-300" 
+        <input
+          type="text"
+          value={solventVolume}
+          onChange={handleVolumeChange}
+          className="w-full text-center mb-1 bg-white text-gray-900 border-2 border-yellow-400 rounded text-base p-1 font-bold focus:outline-none focus:ring-2 focus:ring-yellow-300"
         />
         <input type="range" min="50" max="300" step="50" value={solventVolume} onChange={handleVolumeChange} className="w-full" />
       </div>
@@ -379,6 +435,9 @@ const SolutionsLab: React.FC = () => {
   return (
     <div className="lab-container mx-auto p-4 bg-gray-800 text-white rounded-xl shadow-2xl">
       <h1 className="text-3xl font-extrabold mb-4 text-center text-blue-400">Unit 2: Solutions & Concentration Lab</h1>
+      <div className="text-center text-gray-400 mb-2 text-sm">
+        Activity ID: <span className="font-mono text-blue-300">{activityID}</span>
+      </div>
       <div className="text-center mb-4 px-4 py-2 bg-gray-700/50 rounded-lg">
         <div className={`font-medium text-lg ${notification.color}`}>{notification.message}</div>
       </div>
@@ -417,6 +476,9 @@ const SolutionsLab: React.FC = () => {
                     <span className={`text-xs font-mono px-2 py-0.5 rounded-full ${completedCheckpoints[key] ? 'bg-green-500 text-black' : 'bg-red-500 text-white'}`}>{completedCheckpoints[key] ? 'DONE' : 'PENDING'}</span>
                   </div>
                   <p className="text-sm text-gray-300">{cp.instruction}</p>
+                  {completedCheckpoints[key] && feedbacks[key] && (
+                    <p className="text-sm text-green-300 font-medium mt-1">Feedback: {feedbacks[key]}</p>
+                  )}
                 </div>
               ))}
             </div>

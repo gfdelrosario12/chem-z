@@ -3,9 +3,13 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 
 // --- INTERFACES AND TYPES ---
-type IntermolecularForce = 'Standard' | 'LDF' | 'Dipole-Dipole' | 'Hydrogen-Bonding';
+type IntermolecularForce = 'Standard' | 'LDF' | 'Dipole-Dipole' | 'Hydrogen-Bonding' | 'Strong IMF';
 type IntermolecularForceStrength = 'Strong' | 'Weak' | 'None';
 type Phase = 'Solid' | 'Liquid' | 'Gas';
+
+interface Unit1SimulationProps {
+  activityID: string; // match QuizSimulation
+}
 
 // --- Configuration Constants ---
 const CANVAS_WIDTH = 600;
@@ -36,124 +40,141 @@ const CHECKPOINTS: Record<string, {
   name: string;
   instruction: string;
   criteria: (T: number, P: number, phase: Phase, IMF: IntermolecularForce) => boolean;
+  feedback: string;
 }> = {
   'solid_baseline': {
     name: 'CP1: Baseline – Solid Phase (1pt)',
-    instruction: "Set IMF = Strong, T = 150K, P = 1 atm. Screenshot + data table required.",
-    criteria: (T, P, phase, IMF) =>
-      phase === 'Solid' && IMF === 'Hydrogen-Bonding' && T <= 150 && P === 1,
+    instruction: "Set temperature T = 155 K, pressure P = 1.0 atm, phase = Solid, and IMF = Hydrogen-Bonding.",
+    criteria: (T: number, P: number, phase: Phase, IMF: IntermolecularForce) =>
+      phase === 'Solid' && IMF === 'Hydrogen-Bonding' && T >= 150 && T <= 160 && P >= 0.9 && P <= 1.1,
+    feedback: "✅ Correct! Particles are vibrating in a solid lattice.",
   },
+
   'solid_to_liquid': {
-    name: 'CP2: Solid → Liquid (Melting) (1pt)',
-    instruction: "Increase T in 10K steps until ~300K. Screenshot + particle description required.",
-    criteria: (T, P, phase, IMF) => phase === 'Liquid' && T >= 250 && T <= 320,
+    name: 'CP2: Solid to Liquid (1pt)',
+    instruction: "Set temperature T = 280 K, phase = Liquid (melting point crossed), pressure P = 1.0 atm.",
+    criteria: (T, P, phase, IMF) =>
+      phase === 'Liquid' && T >= 250 && T <= 320,
+    feedback: "✅ Correct! The lattice broke down; substance is melting."
   },
+
   'liquid_to_gas': {
-    name: 'CP3: Liquid → Gas (Boiling/Evaporation) (1pt)',
-    instruction: "Heat to 400–450K (P may drop to 0.5 atm). Screenshot + KE value required.",
-    criteria: (T, P, phase, IMF) => phase === 'Gas' && T >= 400 && T <= 450,
+    name: 'CP3: Liquid to Gas (1pt)',
+    instruction: "Set temperature T = 420 K, phase = Gas, pressure P = 1.0 atm.",
+    criteria: (T, P, phase, IMF) =>
+      phase === 'Gas' && T >= 400,
+    feedback: "✅ Correct! The liquid vaporized into gas."
   },
+
   'gas_to_liquid': {
-    name: 'CP4: Gas → Liquid (Compression) (1pt)',
-    instruction: "Keep T ≈ 350K, raise P to 3–4 atm. Screenshot of condensation required.",
-    criteria: (T, P, phase, IMF) => phase === 'Liquid' && T < 400 && P >= 3,
+    name: 'CP4: Gas to Liquid (1pt)',
+    instruction: "Set temperature T = 350 K, pressure P = 3.0 atm, phase = Liquid to condense gas.",
+    criteria: (T, P, phase, IMF) =>
+      phase === 'Liquid' && T < 400 && P >= 3,
+    feedback: "✅ Correct! Gas condensed back into liquid."
   },
+
   'effect_of_imf': {
     name: 'CP5: Compare IMF Strengths (1pt)',
-    instruction: "Repeat CP1–CP4 with IMF = Weak & None. Fill comparative table.",
-    criteria: (T, P, phase, IMF) => ['LDF', 'Dipole-Dipole', 'Hydrogen-Bonding'].includes(IMF as 'LDF' | 'Dipole-Dipole' | 'Hydrogen-Bonding'),
+    instruction: "Repeat CP1–CP4 for IMF = LDF (Weak), Dipole-Dipole (Medium), Hydrogen-Bonding (Strong). Keep same T & P as before.",
+    criteria: (T, P, phase, IMF) =>
+      IMF === 'LDF' || IMF === 'Dipole-Dipole' || IMF === 'Hydrogen-Bonding',
+    feedback: "🔬 Observation noted! You successfully compared how different IMF strengths affect particle motion and phase change.",
   },
+
   'speed_distribution': {
     name: 'CP6: Speed Distribution (Histogram) (1pt)',
-    instruction: "At Gas phase, T=400K, increase to 450K. Note histogram peak shift.",
-    criteria: (T, P, phase, IMF) => phase === 'Gas' && T >= 450,
+    instruction: "Set temperature T = 450 K, phase = Gas, pressure P = 1.0 atm. Observe particle speed histogram.",
+    criteria: (T, P, phase, IMF) =>
+      phase === 'Gas' && T >= 450,
+    feedback: "📊 Well done! You captured the shift in particle speeds at higher temperatures as expected from KMT.",
   },
 };
 
 // --- Lab Glass Visualizer Component (UPDATED) ---
 const LabGlassVisualizer = ({ temperature, currentPhase, substanceType }: { temperature: number, currentPhase: string, substanceType: SubstanceType }) => {
-    
-    const isHeating = temperature > MELTING_POINT;
-    const isShaking = temperature > 350; // Use a threshold for high KE (shaking simulation)
 
-    let phaseClass = '';
-    let fillStyle = {};
-    let activityClass = '';
-    let handActionClass = '';
+  const isHeating = temperature > MELTING_POINT;
+  const isShaking = temperature > 350; // Use a threshold for high KE (shaking simulation)
 
-    // 1. Determine Phase Fill
-    if (currentPhase === 'Solid') {
-        phaseClass = `vibrate-${Math.min(3, Math.floor((temperature - 150) / 30))}`;
-        fillStyle = { backgroundColor: '#3b82f6', height: '40%', bottom: '10px' };
-    } else if (currentPhase === 'Liquid') {
-        phaseClass = 'slosh';
-        fillStyle = { backgroundColor: '#f59e0b', height: '50%', bottom: '10px' };
-    } else { // Gas
-        phaseClass = 'expand';
-        fillStyle = { background: 'linear-gradient(to top, rgba(239, 68, 68, 0.2), rgba(239, 68, 68, 0.7))', height: '90%', bottom: '5px' };
-    }
+  let phaseClass = '';
+  let fillStyle = {};
+  let activityClass = '';
+  let handActionClass = '';
 
-    // 2. Determine Hand/Activity Action
-    if (isShaking) {
-        handActionClass = 'shake-hand';
-        activityClass = 'shake-flask-container'; // Class to shake the flask container
-    } else if (isHeating) {
-        handActionClass = 'heat-hand';
-        activityClass = 'burner-base'; // Class to display the burner
-    } else {
-        handActionClass = 'hold-hand';
-        activityClass = 'stand-base'; // Class for resting/holding
-    }
+  // 1. Determine Phase Fill
+  if (currentPhase === 'Solid') {
+    phaseClass = `vibrate-${Math.min(3, Math.floor((temperature - 150) / 30))}`;
+    fillStyle = { backgroundColor: '#3b82f6', height: '40%', bottom: '10px' };
+  } else if (currentPhase === 'Liquid') {
+    phaseClass = 'slosh';
+    fillStyle = { backgroundColor: '#f59e0b', height: '50%', bottom: '10px' };
+  } else { // Gas
+    phaseClass = 'expand';
+    fillStyle = { background: 'linear-gradient(to top, rgba(239, 68, 68, 0.2), rgba(239, 68, 68, 0.7))', height: '90%', bottom: '5px' };
+  }
 
-    // Hand position adjustments to look like it's holding the flask
-    const handStyle = {
-        transform: isHeating ? 'translateY(15px)' : isShaking ? 'translateY(0)' : 'translateY(10px)',
-        zIndex: 10,
-    };
+  // 2. Determine Hand/Activity Action
+  if (isShaking) {
+    handActionClass = 'shake-hand';
+    activityClass = 'shake-flask-container'; // Class to shake the flask container
+  } else if (isHeating) {
+    handActionClass = 'heat-hand';
+    activityClass = 'burner-base'; // Class to display the burner
+  } else {
+    handActionClass = 'hold-hand';
+    activityClass = 'stand-base'; // Class for resting/holding
+  }
 
-    return (
-        <div className="lab-glass-container relative w-32 h-32 flex justify-center items-center rounded-lg border-2 border-gray-600 bg-gray-900 shadow-inner overflow-hidden">
-            
-            <div className={`flask-wrapper relative w-16 h-24 flex flex-col justify-end items-center ${activityClass}`}>
-                
-                {/* Simulated Hand */}
-                <div className={`hand absolute top-0 left-1/2 -translate-x-1/2 ${handActionClass}`} style={handStyle}>
-                    {/* Simplified Hand (CSS shape) */}
-                    <div className="finger thumb"></div>
-                    <div className="finger index"></div>
-                    <div className="finger middle"></div>
-                    <div className="palm"></div>
-                </div>
+  // Hand position adjustments to look like it's holding the flask
+  const handStyle = {
+    transform: isHeating ? 'translateY(15px)' : isShaking ? 'translateY(0)' : 'translateY(10px)',
+    zIndex: 10,
+  };
 
-                {/* Flask Body */}
-                <div className={`flask w-12 h-20 border-2 border-blue-300/50 rounded-b-xl overflow-hidden relative bg-blue-100/10 ${phaseClass}`}>
-                    <div 
-                        className="state-fill absolute left-0 right-0 rounded-b-xl transition-all duration-500"
-                        style={fillStyle}
-                    >
-                         {/* Visualizer for Gas condensation/vapor */}
-                        <div className={`absolute top-0 left-0 right-0 h-full ${currentPhase === 'Gas' ? 'opacity-100' : 'opacity-0'} transition-opacity duration-500`}>
-                            <div className="w-full h-full rounded-b-xl" style={{ backgroundColor: 'rgba(255, 255, 255, 0.1)' }}></div>
-                        </div>
-                    </div>
-                </div>
+  return (
+    <div className="lab-glass-container relative w-32 h-32 flex justify-center items-center rounded-lg border-2 border-gray-600 bg-gray-900 shadow-inner overflow-hidden">
+
+      <div className={`flask-wrapper relative w-16 h-24 flex flex-col justify-end items-center ${activityClass}`}>
+
+        {/* Simulated Hand */}
+        <div className={`hand absolute top-0 left-1/2 -translate-x-1/2 ${handActionClass}`} style={handStyle}>
+          {/* Simplified Hand (CSS shape) */}
+          <div className="finger thumb"></div>
+          <div className="finger index"></div>
+          <div className="finger middle"></div>
+          <div className="palm"></div>
+        </div>
+
+        {/* Flask Body */}
+        <div className={`flask w-12 h-20 border-2 border-blue-300/50 rounded-b-xl overflow-hidden relative bg-blue-100/10 ${phaseClass}`}>
+          <div
+            className="state-fill absolute left-0 right-0 rounded-b-xl transition-all duration-500"
+            style={fillStyle}
+          >
+            {/* Visualizer for Gas condensation/vapor */}
+            <div className={`absolute top-0 left-0 right-0 h-full ${currentPhase === 'Gas' ? 'opacity-100' : 'opacity-0'} transition-opacity duration-500`}>
+              <div className="w-full h-full rounded-b-xl" style={{ backgroundColor: 'rgba(255, 255, 255, 0.1)' }}></div>
             </div>
+          </div>
+        </div>
+      </div>
 
-            {/* Burner Base (Only visible when heating) */}
-            {activityClass === 'burner-base' && (
-                <div className="burner absolute bottom-0 w-full h-6 flex justify-center items-center">
-                    <div className="burner-stand w-14 h-3 bg-gray-600 rounded-t-sm"></div>
-                    <div className="flame"></div>
-                </div>
-            )}
-            
-            {/* Phase Label */}
-            <p className="absolute bottom-1 right-2 text-xs text-gray-400 font-mono">
-                {currentPhase.toUpperCase()}
-            </p>
-            
-            {/* Custom CSS for Flask, Hand, and Animations */}
-            <style jsx={true}>{`
+      {/* Burner Base (Only visible when heating) */}
+      {activityClass === 'burner-base' && (
+        <div className="burner absolute bottom-0 w-full h-6 flex justify-center items-center">
+          <div className="burner-stand w-14 h-3 bg-gray-600 rounded-t-sm"></div>
+          <div className="flame"></div>
+        </div>
+      )}
+
+      {/* Phase Label */}
+      <p className="absolute bottom-1 right-2 text-xs text-gray-400 font-mono">
+        {currentPhase.toUpperCase()}
+      </p>
+
+      {/* Custom CSS for Flask, Hand, and Animations */}
+      <style jsx={true}>{`
                 /* --- Flask Animations (unchanged) --- */
                 @keyframes shake-0 { 0%, 100% { transform: translateY(0); } }
                 @keyframes shake-1 { 0%, 100% { transform: translateY(0); } 25% { transform: translateY(-0.5px); } 75% { transform: translateY(0.5px); } }
@@ -258,20 +279,20 @@ const LabGlassVisualizer = ({ temperature, currentPhase, substanceType }: { temp
                     transform: translateY(10px);
                 }
             `}</style>
-        </div>
-    );
+    </div>
+  );
 };
 // --- End Lab Glass Visualizer Component (UPDATED) ---
 
 
-export default function App() {
+export default function App({ activityID }: { activityID: string }) {
   // --- State for UI and Control (unchanged) ---
   const [temperature, setTemperature] = useState(150); // K
   const [pressure, setPressure] = useState(1.0); // atm
   const [substanceType, setSubstanceType] = useState<SubstanceType>('Standard');
   const [points, setPoints] = useState(0);
   const [notification, setNotification] = useState({ message: 'Welcome to the KMT Lab! Use the heater and piston to explore phase changes.', color: 'text-yellow-400' });
-  
+
   // State to track completed checkpoints 
   const [completedCheckpoints, setCompletedCheckpoints] = useState<Record<string, boolean>>({});
 
@@ -292,62 +313,85 @@ export default function App() {
   const currentPhase = temperature <= MELTING_POINT ? 'Solid' : (temperature <= BOILING_POINT ? 'Liquid' : 'Gas');
 
   const captureScreenshot = async (): Promise<Blob | null> => {
-  const canvas = canvasRef.current;
-  if (!canvas) {
-    showNotification("Canvas not found!", "red");
-    return null;
-  }
-
-  return new Promise((resolve) => {
-    canvas.toBlob((blob) => resolve(blob), "image/png");
-  });
-};
-
-const uploadScreenshotToS3 = async () => {
-  try {
-    const blob = await captureScreenshot();
-    if (!blob) {
-      showNotification("Failed to capture screenshot", "red");
-      return;
+    const canvas = canvasRef.current;
+    if (!canvas) {
+      showNotification("Canvas not found!", "red");
+      return null;
     }
 
-    const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL;
-
-    // 1️⃣ Ask backend for a presigned URL in the "proofs" folder
-    const presignRes = await fetch(`${baseUrl}/activities/presigned-url/proof`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        fileName: `screenshot_${Date.now()}.png`,
-        contentType: "image/png",
-      }),
+    return new Promise((resolve) => {
+      canvas.toBlob((blob) => resolve(blob), "image/png");
     });
+  };
 
-    if (!presignRes.ok) throw new Error("Failed to get presigned URL");
+  const saveScore = async (score: number) => {
+    try {
+      const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL;
 
-    const { url, fileName, s3Key } = await presignRes.json();
+      const res = await fetch(`${baseUrl}/activities/save-score`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          activityNumber: activityID,
+          score,
+        }),
 
-    // 2️⃣ Upload file to S3
-    const uploadRes = await fetch(url, {
-      method: "PUT",
-      headers: { "Content-Type": "image/png" },
-      body: blob,
-    });
+      });
 
-    if (!uploadRes.ok) throw new Error("S3 upload failed");
+      if (!res.ok) throw new Error("Failed to save score");
 
-    // 3️⃣ Construct final public URL
-    const fileUrl = url.split("?")[0];
+      showNotification(`✅ Simulation Score (${score}) successfully saved!`, "green", 5000);
+    } catch (err) {
+      console.error(err);
+      showNotification("❌ Failed to save simulation score.", "red", 5000);
+    }
+  };
 
-    showNotification("✅ Screenshot uploaded!", "green", 5000);
+  const uploadScreenshotToS3 = async () => {
+    try {
+      const blob = await captureScreenshot();
+      if (!blob) {
+        showNotification("Failed to capture screenshot", "red");
+        return;
+      }
 
-    return { fileUrl, fileName, s3Key };
-  } catch (err) {
-    console.error("Upload error", err);
-    showNotification("Upload failed!", "red", 5000);
-    return null;
-  }
-};
+      const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL;
+
+      // 1️⃣ Ask backend for a presigned URL in the "proofs" folder
+      const presignRes = await fetch(`${baseUrl}/activities/presigned-url/proof`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          fileName: `screenshot_${Date.now()}.png`,
+          contentType: "image/png",
+        }),
+      });
+
+      if (!presignRes.ok) throw new Error("Failed to get presigned URL");
+
+      const { url, fileName, s3Key } = await presignRes.json();
+
+      // 2️⃣ Upload file to S3
+      const uploadRes = await fetch(url, {
+        method: "PUT",
+        headers: { "Content-Type": "image/png" },
+        body: blob,
+      });
+
+      if (!uploadRes.ok) throw new Error("S3 upload failed");
+
+      // 3️⃣ Construct final public URL
+      const fileUrl = url.split("?")[0];
+
+      showNotification("✅ Screenshot uploaded!", "green", 5000);
+
+      return { fileUrl, fileName, s3Key };
+    } catch (err) {
+      console.error("Upload error", err);
+      showNotification("Upload failed!", "red", 5000);
+      return null;
+    }
+  };
 
   // Determine particle radius based on substance type
   const getParticleRadius = (substance: SubstanceType): number => {
@@ -499,7 +543,7 @@ const uploadScreenshotToS3 = async () => {
 
     particlesRef.current = particles;
     animationFrameRef.current = requestAnimationFrame(gameLoop);
-  }, []); 
+  }, []);
 
   // --- Checkpoint Submission Logic (unchanged) ---
   const submitCheckpoint = () => {
@@ -509,38 +553,52 @@ const uploadScreenshotToS3 = async () => {
     for (const key in CHECKPOINTS) {
       if (key in CHECKPOINTS && CHECKPOINTS[key].criteria(temperature, pressure, currentPhase, substanceType as IntermolecularForce)) {
         taskKey = key;
-        break; 
+        break;
       }
     }
-    
+
     if (taskKey === '' && (completedCheckpoints['solid_baseline'] && completedCheckpoints['solid_to_liquid'] && completedCheckpoints['liquid_to_gas'] && completedCheckpoints['gas_to_liquid'])) {
-        showNotification('All Phase Change Checkpoints Complete! Submit your external data (CP5, CP6) using the Final Submit button.', 'yellow', 6000);
-        return;
+      showNotification('All Phase Change Checkpoints Complete! Submit your external data (CP5, CP6) using the Final Submit button.', 'yellow', 6000);
+      return;
     }
 
 
     if (taskKey) {
       const name = CHECKPOINTS[taskKey].name;
+      const feedbackMsg = CHECKPOINTS[taskKey].feedback; // get feedback
+
       if (!completedCheckpoints[taskKey]) {
         setPoints(p => p + pointsAwarded);
         setCompletedCheckpoints(prev => ({ ...prev, [taskKey]: true }));
-        showNotification(`${name} successfully submitted! (+${pointsAwarded} Pt)`, 'lime', 5000); 
+
+        // Show points notification
+        showNotification(`${name} successfully submitted! (+${pointsAwarded} Pt)`, 'lime', 4000);
+
+        // Show feedback notification after a short delay
+        setTimeout(() => {
+          showNotification(feedbackMsg, 'cyan', 6000);
+        }, 1000);
+
       } else {
         showNotification(`${name} already completed. No points awarded.`, 'orange');
       }
-    } else {
-      showNotification('Current state does not match a defined checkpoint task. Check the Guidance Panel for criteria.', 'red', 5000);
     }
+
   };
 
   // --- Final Submission Logic (unchanged) ---
   const finalSubmission = () => {
-    const completedSimulationCheckpoints = Object.keys(completedCheckpoints).filter(key => key.startsWith('solid') || key.startsWith('liquid') || key.startsWith('gas')).length;
-    
+    const completedSimulationCheckpoints = Object.keys(completedCheckpoints)
+      .filter(key => key.startsWith('solid') || key.startsWith('liquid') || key.startsWith('gas'))
+      .length;
+
     if (completedSimulationCheckpoints === 4) {
-      showNotification(`FINAL SUBMISSION: All 4 phase change checkpoints successfully logged. Total Score: ${points} points (from simulation). Submit your worksheet for full points!`, 'green', 10000);
+      const fullScore = 100;
+      setPoints(fullScore);
+      showNotification(`FINAL SUBMISSION: Simulation complete! Total Score: ${fullScore} points. Saving...`, 'green', 7000);
+      saveScore(fullScore);
     } else {
-      showNotification(`FINAL SUBMISSION: Only ${completedSimulationCheckpoints} of 4 simulation checkpoints logged. Complete all required steps and submit your full worksheet.`, 'yellow', 10000);
+      showNotification(`FINAL SUBMISSION: Only ${completedSimulationCheckpoints} of 4 simulation checkpoints completed. Complete all steps to save full points.`, 'yellow', 7000);
     }
   };
 
@@ -561,7 +619,7 @@ const uploadScreenshotToS3 = async () => {
       showNotification("All primary simulation checkpoints (CP1-CP4) are complete! Focus on CP5/CP6 and the Final Submission.", 'green', 6000);
       return;
     }
-    
+
     const currentT = temperature;
     const currentP = pressure;
     const currentIMF = substanceType;
@@ -571,29 +629,29 @@ const uploadScreenshotToS3 = async () => {
     let hintColor = 'cyan';
 
     switch (nextCheckpointKey) {
-        case 'solid_baseline':
-            // Fixed formatting from **Strong IMF** to <b>Strong IMF</b> for notification
-            hintMessage += `You must start with a <b>Strong IMF</b> substance. Ensure your <b>Temperature</b> is near the minimum (${150}K) and <b>Pressure</b> is low (${1.0} atm).`;
-            if (currentIMF !== 'Strong IMF') hintMessage = "Hint: Switch the <b>Substance Type</b> to <b>Strong IMF</b> first.";
-            break;
-        case 'solid_to_liquid':
-            hintMessage += `The substance is currently solid. You need to <b>add energy</b> to break the lattice structure. Try increasing the <b>Temperature</b> above ${MELTING_POINT}K.`;
-            if (currentT < MELTING_POINT) hintMessage += ` (Current T: ${currentT}K. Target > ${MELTING_POINT}K)`;
-            break;
-        case 'liquid_to_gas':
-            hintMessage += `The substance is liquid. To turn it into a gas (Vapor State), you must increase the <b>Temperature</b> further to overcome all intermolecular forces. Try heating above ${BOILING_POINT}K.`;
-            if (currentT < BOILING_POINT) hintMessage += ` (Current T: ${currentT}K. Target ≥ ${BOILING_POINT}K)`;
-            break;
-        case 'gas_to_liquid':
-            hintMessage += `The substance is gas. To condense it back to a liquid, you need to either <b>cool it down</b> or <b>increase the pressure</b> (compression). Try raising the <b>Pressure</b> to ${3.0} atm or higher while keeping T below ${BOILING_POINT}K.`;
-            if (currentP < 3.0) hintMessage += ` (Current P: ${currentP.toFixed(1)} atm. Target ≥ ${3.0} atm)`;
-            break;
+      case 'solid_baseline':
+        // Fixed formatting from **Strong IMF** to <b>Strong IMF</b> for notification
+        hintMessage += `You must start with a <b>Strong IMF</b> substance. Ensure your <b>Temperature</b> is near the minimum (${150}K) and <b>Pressure</b> is low (${1.0} atm).`;
+        if (currentIMF !== 'Strong IMF') hintMessage = "Hint: Switch the <b>Substance Type</b> to <b>Strong IMF</b> first.";
+        break;
+      case 'solid_to_liquid':
+        hintMessage += `The substance is currently solid. You need to <b>add energy</b> to break the lattice structure. Try increasing the <b>Temperature</b> above ${MELTING_POINT}K.`;
+        if (currentT < MELTING_POINT) hintMessage += ` (Current T: ${currentT}K. Target > ${MELTING_POINT}K)`;
+        break;
+      case 'liquid_to_gas':
+        hintMessage += `The substance is liquid. To turn it into a gas (Vapor State), you must increase the <b>Temperature</b> further to overcome all intermolecular forces. Try heating above ${BOILING_POINT}K.`;
+        if (currentT < BOILING_POINT) hintMessage += ` (Current T: ${currentT}K. Target ≥ ${BOILING_POINT}K)`;
+        break;
+      case 'gas_to_liquid':
+        hintMessage += `The substance is gas. To condense it back to a liquid, you need to either <b>cool it down</b> or <b>increase the pressure</b> (compression). Try raising the <b>Pressure</b> to ${3.0} atm or higher while keeping T below ${BOILING_POINT}K.`;
+        if (currentP < 3.0) hintMessage += ` (Current P: ${currentP.toFixed(1)} atm. Target ≥ ${3.0} atm)`;
+        break;
     }
 
     // Using dangerouslySetInnerHTML to allow HTML for bolding in the notification message
     setNotification({ message: hintMessage, color: `text-${hintColor}-400` });
     setTimeout(() => {
-        setNotification({ message: 'Ready to continue the experiment.', color: 'text-yellow-400' });
+      setNotification({ message: 'Ready to continue the experiment.', color: 'text-yellow-400' });
     }, 7000);
   };
 
@@ -721,43 +779,43 @@ const uploadScreenshotToS3 = async () => {
 
       {/* IMF Selection & Lab Glass Visualizer */}
       <div className="flex justify-center items-center gap-6 mb-6 p-4 bg-gray-900 rounded-lg">
-        
+
         {/* IMF Selection */}
         <div className="flex items-center gap-4">
-            <span className="text-sm font-medium self-center text-gray-300">Substance Type:</span>
-            {['Standard', 'Weak IMF', 'Strong IMF'].map(type => (
+          <span className="text-sm font-medium self-center text-gray-300">Substance Type:</span>
+          {['Standard', 'Weak IMF', 'Strong IMF'].map(type => (
             <button
-                key={type}
-                className={`px-3 py-1 rounded-full text-sm font-semibold transition transform hover:scale-105 ${substanceType === type ? "bg-purple-600 text-white shadow-lg" : "bg-gray-600 text-gray-200 hover:bg-gray-500"}`}
-                onClick={() => setSubstanceType(type as SubstanceType)}
+              key={type}
+              className={`px-3 py-1 rounded-full text-sm font-semibold transition transform hover:scale-105 ${substanceType === type ? "bg-purple-600 text-white shadow-lg" : "bg-gray-600 text-gray-200 hover:bg-gray-500"}`}
+              onClick={() => setSubstanceType(type as SubstanceType)}
             >
-                {type}
+              {type}
             </button>
-            ))}
+          ))}
         </div>
-        
+
         {/* Vertical Separator */}
         <div className="w-px h-12 bg-gray-600"></div>
 
         {/* Lab Glass Visualizer (UPDATED HERE) */}
         <div className="flex items-center gap-3">
-            <span className="text-sm font-medium text-gray-300">Physical State Visualizer:</span>
-            <LabGlassVisualizer temperature={temperature} currentPhase={currentPhase} substanceType={substanceType} />
+          <span className="text-sm font-medium text-gray-300">Physical State Visualizer:</span>
+          <LabGlassVisualizer temperature={temperature} currentPhase={currentPhase} substanceType={substanceType} />
         </div>
       </div>
 
       {/* Main Layout: Simulation Column (Left) and Guidance Panel (Right) */}
       <div className="flex gap-6">
-        
+
         {/* Left/Main Column (Controls, Status, Canvas) */}
         <div className="flex-grow max-w-[600px] mx-auto">
-          
+
           {/* Controls and Final Submission */}
           <div className="flex items-start gap-4 mb-4">
             <div className="flex-grow">
               {renderControls()}
             </div>
-            
+
             {/* FINAL SUBMISSION BUTTON */}
             <button
               className="w-32 h-20 bg-teal-500 text-gray-900 font-extrabold text-sm rounded-lg hover:bg-teal-400 transition transform hover:scale-105 active:scale-95 shadow-xl flex flex-col justify-center items-center"
@@ -782,10 +840,9 @@ const uploadScreenshotToS3 = async () => {
               <h4 className="text-sm font-bold text-blue-300 mb-1">Sim CPs (4 pts):</h4>
               <div className="flex gap-1">
                 {Object.keys(CHECKPOINTS).slice(0, 4).map(key => (
-                  <div 
-                    key={key} 
-                    className={`px-2 py-0.5 rounded-md text-xs font-semibold ${completedCheckpoints[key] ? "bg-green-600 text-white shadow-md" : "bg-red-800 text-red-200"}`}
-                    title={CHECKPOINTS[key].name}
+                  <div
+                    key={key}
+                    className={`w-4 h-4 rounded-full border ${completedCheckpoints[key] ? 'bg-green-500' : 'bg-gray-600'}`}
                   >
                     {key.split('_')[0].toUpperCase()}
                   </div>
@@ -793,7 +850,7 @@ const uploadScreenshotToS3 = async () => {
               </div>
             </div>
           </div>
-          
+
           {/* Notification Area - using dangerouslySetInnerHTML for HTML bolding in hints */}
           <div className="text-center mb-4 px-4 py-2 bg-gray-700/50 rounded-lg">
             <div className={`font-medium text-lg ${notification.color}`} dangerouslySetInnerHTML={{ __html: notification.message }} />
@@ -847,7 +904,7 @@ const uploadScreenshotToS3 = async () => {
           <h2 className="text-xl font-extrabold text-yellow-300 mb-4 text-center border-b pb-2 border-yellow-500/50">
             Experiment Checkpoints Guidance (6 Total)
           </h2>
-          
+
           <div className="space-y-4">
             {Object.entries(CHECKPOINTS).map(([key, cp], index) => (
               <div key={key} className={`p-3 rounded-lg transition ${completedCheckpoints[key] ? 'bg-green-800/70 border-l-4 border-green-400' : 'bg-gray-800/70 border-l-4 border-red-400'}`}>
@@ -864,11 +921,11 @@ const uploadScreenshotToS3 = async () => {
                 </p>
                 {/* Show current state for the simulation-validated checkpoints (CP1-CP4) */}
                 {index < 4 && (
-                    <p className="text-xs text-blue-400 mt-2 p-1 bg-gray-700 rounded">
-                        Status: {cp.criteria(temperature, pressure, currentPhase, substanceType as IntermolecularForce) ? 
-                            'Criteria Met (Ready to Submit)' : 
-                            'Criteria Not Met. Adjust controls.'}
-                    </p>
+                  <p className="text-xs text-blue-400 mt-2 p-1 bg-gray-700 rounded">
+                    Status: {cp.criteria(temperature, pressure, currentPhase, substanceType as IntermolecularForce) ?
+                      'Criteria Met (Ready to Submit)' :
+                      'Criteria Not Met. Adjust controls.'}
+                  </p>
                 )}
               </div>
             ))}
