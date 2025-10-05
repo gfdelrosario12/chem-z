@@ -30,7 +30,7 @@ const CHECKPOINTS: {
   [key: string]: {
     name: string;
     instruction: string;
-    feedback: string; // ✅ NEW
+    hint: string;
     requiredState: (
       n: number,
       M: number,
@@ -43,51 +43,71 @@ const CHECKPOINTS: {
 } = {
   unsaturated_prepare: {
     name: "CP1: Prepare Unsaturated (1 pt)",
-    instruction:
-      "Set T=25°C, V=100mL. Add NaCl=2.0g. Task: Record n, M. Screenshot ions.",
-    feedback: "Great! You correctly prepared an unsaturated solution.", // ✅ NEW
+    instruction: "Set T=25°C, V=100mL. Add NaCl=2.0g. Task: Record n, M.",
+    hint: "Check your temperature and amount of solute. Are you in the unsaturated range?",
     requiredState: (n, M, m, T, Phase) =>
       T === 25 && n > 0.033 && n < 0.036 && Phase === "Unsaturated",
   },
+
   approach_saturation: {
     name: "CP2: Approach Saturation (1 pt)",
-    instruction:
-      "Add solute until solid remains (Saturated). Task: Record total dissolved mass, n, M. Screenshot.",
-    feedback: "Good job! The solution is now saturated.", // ✅ NEW
+    instruction: "Add solute until solid remains. Task: Record total dissolved mass, n, M.",
+    hint: "Solution may not be saturated yet. Try adding more solute or check T.",
     requiredState: (n, M, m, T, Phase) =>
       T === 25 && n > 0.61 && n < 0.62 && Phase === "Saturated",
   },
+
   supersaturation_ready: {
     name: "CP3a: Supersaturation Prep (1 pt)",
-    instruction:
-      "Heat to 60°C, dissolve all. Cool to 25°C without disturbance. Status: Supersaturated.",
-    feedback: "Excellent! You achieved a supersaturated solution.", // ✅ NEW
+    instruction: "Heat to 60°C, dissolve all. Cool to 25°C without disturbance.",
+    hint: "Ensure all solute is dissolved before cooling. Avoid shaking or stirring.",
     requiredState: (n, M, m, T, Phase) =>
       T === 25 && n > 0.61 && Phase === "Supersaturated",
   },
+
   supersaturation_seeded: {
-    name: "CP3b: Seeding Effect (1 pt)",
-    instruction:
-      "Add Seed crystal in Supersaturated state. Task: Screenshot seeding effect.",
-    feedback: "Seed crystal added! Rapid crystallization observed.", // ✅ NEW
+    name: "CP3b: Seed Crystal Added (1 pt)",
+    instruction: "Add a seed crystal in the supersaturated solution.",
+    hint: "Crystallization starts only if the seed crystal is added.",
     requiredState: (n, M, m, T, Phase, isSeeded) => !!isSeeded,
   },
-  temp_effect_plot: {
-    name: "CP4: Temperature Effect (1 pt)",
-    instruction:
-      "Repeat saturation at 25°C, 40°C, 60°C. Task: Plot 3 points on curve.",
-    feedback: "Temperature dependence plotted successfully.", // ✅ NEW
-    requiredState: () => false,
-  },
-  molality_extension: {
-    name: "CP5: Molality vs. Molarity (Bonus 1 pt)",
-    instruction: "Set V=250mL, Add 7.3g NaCl. Task: Record M and m.",
-    feedback: "Bonus! Molality vs. Molarity relationship recorded.", // ✅ NEW
+
+  temp_effect_25: {
+    name: "CP4: Temperature Effect at 25°C (1 pt)",
+    instruction: "Repeat the saturation at 25°C.",
+    hint: "Ensure the solution reaches saturation at 25°C.",
     requiredState: (n, M, m, T, Phase) =>
-      Math.abs(n - 0.125) < 0.002 &&
-      Math.abs(M - 0.5) < 0.02 &&
-      Math.abs(m - 0.5) < 0.02,
+      T === 25 && Phase === "Saturated" && n > 0.61 && n < 0.62,
   },
+
+  temp_effect_40: {
+    name: "CP5: Temperature Effect at 40°C (1 pt)",
+    instruction: "Repeat the saturation at 40°C.",
+    hint: "Ensure the solution reaches saturation at 40°C.",
+    requiredState: (n, M, m, T, Phase) =>
+      T === 40 && Phase === "Saturated" && n > 0.61 && n < 0.64,
+  },
+
+  temp_effect_60: {
+    name: "CP6: Temperature Effect at 60°C (1 pt)",
+    instruction: "Repeat the saturation at 60°C.",
+    hint: "Ensure the solution reaches saturation at 60°C.",
+    requiredState: (n, M, m, T, Phase) =>
+      T === 60 && Phase === "Saturated" && n > 0.62 && n < 0.65,
+  },
+
+  molality_extension: {
+    name: "CP7: Molality vs. Molarity (Bonus 1 pt)",
+    instruction: "Set V=250mL, Add 7.5g NaCl, T=25°C. Task: Record M and m.",
+    hint: "Check your recorded molality and molarity values. Are they correct?",
+    requiredState: (n, M, m, T, Phase) =>
+      T === 25 &&
+      n > 0.127 && n < 0.130 &&
+      M > 0.51 && M < 0.52 &&
+      m > 0.51 && m < 0.52,
+  },
+
+
 };
 
 const SolutionsLab: React.FC<SolutionsLabProps> = ({ activityID }) => {
@@ -95,7 +115,8 @@ const SolutionsLab: React.FC<SolutionsLabProps> = ({ activityID }) => {
   useEffect(() => {
     console.log("SolutionsLab loaded for activityID:", activityID);
   }, [activityID]);
-
+  const studentId = typeof window !== "undefined" ? localStorage.getItem("userId") : null;
+  const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL!;
   // --- existing states and logic ---
   const [soluteMass, setSoluteMass] = useState(2.0);
   const [solventVolume, setSolventVolume] = useState(100);
@@ -113,6 +134,53 @@ const SolutionsLab: React.FC<SolutionsLabProps> = ({ activityID }) => {
       "Welcome to the Solutions Lab! Start by preparing an unsaturated solution (CP1).",
     color: "text-yellow-400",
   });
+
+  // Add a derived state to check if final submission is allowed
+  const isFinalSubmitBlocked = Object.keys(CHECKPOINTS).some(
+    (key) => !completedCheckpoints[key]
+  );
+
+  // Also, track retries from backend
+  const [retries, setRetries] = useState<number | null>(null);
+
+  // Fetch current retries whenever points/checkpoints change
+  useEffect(() => {
+    const fetchRetries = async () => {
+      if (!studentId) return;
+      try {
+        const res = await fetch(`${baseUrl}/activities/${activityID}/retries/${studentId}`);
+        const data = await res.json();
+        setRetries(data);
+      } catch (err) {
+        console.error("Failed to fetch retries:", err);
+      }
+    };
+    fetchRetries();
+  }, [completedCheckpoints, studentId, baseUrl, activityID]);
+
+  if (retries === null) {
+    // Loading state while fetching retries
+    return (
+      <div className="flex items-center justify-center h-screen text-white text-lg">
+        Loading Lab...
+      </div>
+    );
+  }
+
+  // Block entire lab if retries = 3 (or blocked state)
+  if (retries >= 3) {
+    return (
+      <div className="flex flex-col items-center justify-center h-screen text-center text-white bg-gray-900 p-4 rounded-xl">
+        <h1 className="text-3xl font-bold text-red-500 mb-4">Lab Access Blocked</h1>
+        <p className="text-lg text-gray-300 mb-4">
+          You have reached the maximum number of retries for this lab. Final submission is no longer allowed.
+        </p>
+        <p className="text-gray-400">
+          Please contact your instructor if you think this is an error or need further assistance.
+        </p>
+      </div>
+    );
+  }
 
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const animationFrameRef = useRef<number | null>(null);
@@ -308,49 +376,86 @@ const SolutionsLab: React.FC<SolutionsLabProps> = ({ activityID }) => {
     setSolventVolume(newV);
   };
 
-  const submitCheckpoint = async () => {
-    let taskKey = "";
-    let pointsAwarded = 1;
+  const submitCheckpoint = () => {
+    let checkpointAwarded = false;
 
     for (const key in CHECKPOINTS) {
-      const criteria = CHECKPOINTS[key].requiredState;
-      if (
-        criteria(
-          n_mol,
-          n_mol / (solventVolume / 1000),
-          n_mol / solventMass_kg,
-          temperature,
-          "Unsaturated"
-        )
-      ) {
-        taskKey = key;
-        pointsAwarded = key === "supersaturation_ready" ? 2 : 1;
-        setFeedbacks(prev => ({ ...prev, [key]: CHECKPOINTS[key].feedback }));
-        break;
+      if (completedCheckpoints[key]) continue; // Skip already completed
+
+      const cp = CHECKPOINTS[key];
+      const meetsCriteria = cp.requiredState(
+        dissolved_n_mol,
+        molarity,
+        molality,
+        temperature,
+        currentPhase,
+        isSeeded
+      );
+
+      if (meetsCriteria) {
+        // ✅ Correct checkpoint, award point
+        setPoints(prev => prev + 1);
+        setCompletedCheckpoints(prev => ({ ...prev, [key]: true }));
+        setFeedbacks(prev => ({ ...prev, [key]: "Checkpoint completed successfully!" }));
+        showNotification(`✅ ${cp.name} completed! You earned 1 point.`, 'green', 4000);
+
+        checkpointAwarded = true;
+        break; // Only submit one checkpoint at a time
+      } else {
+        // ❌ Incorrect — show hint
+        showNotification(`💡 Hint: ${cp.hint}`, 'yellow', 5000);
+        checkpointAwarded = false;
+        break; // Show hint for the first unmet checkpoint
       }
     }
 
-    if (taskKey) {
-      // ✅ send to backend with activityID if needed
-      try {
-        await fetch(
-          `http://localhost:8080/api/activities/${activityID}/checkpoints`,
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              checkpoint: taskKey,
-              pointsAwarded,
-            }),
-          }
-        );
-        console.log("Checkpoint logged for", activityID, taskKey);
-      } catch (err) {
-        console.error("Failed to save checkpoint:", err);
-      }
+    if (!checkpointAwarded && Object.keys(completedCheckpoints).length === Object.keys(CHECKPOINTS).length) {
+      showNotification("All checkpoints completed!", 'blue', 4000);
     }
   };
 
+  const finalSubmit = async () => {
+    try {
+      if (!studentId) {
+        showNotification("❌ Student ID missing!", "red", 4000);
+        return;
+      }
+
+      // --- Send 3 PATCH requests to increment retries ---
+      for (let i = 0; i < 3; i++) {
+        await fetch(`${baseUrl}/activities/${activityID}/retries/${studentId}`, {
+          method: "PATCH",
+        });
+      }
+
+      // --- Check retries from backend ---
+      const retriesRes = await fetch(`${baseUrl}/activities/${activityID}/retries/${studentId}`);
+      const retries = await retriesRes.json();
+
+      if (retries !== 3) {
+        showNotification("💡 Full lab can only be submitted if retries = 3.", "yellow", 5000);
+        return;
+      }
+
+      // --- Send full score if retries = 3 ---
+      const fullScore = 100;
+      await fetch(`${baseUrl}/activities/${activityID}/score/${studentId}?score=${fullScore}`, {
+        method: "PATCH",
+      });
+
+      showNotification("✅ Final submission successful! You earned 100 points.", "green", 5000);
+    } catch (err) {
+      console.error("Final submission failed:", err);
+      showNotification("❌ Submission failed. Try again later.", "red", 5000);
+    }
+  };
+
+  /*************  ✨ Windsurf Command ⭐  *************/
+  /**
+   * Add a seed crystal to the solution. This will only work if the current phase is 'Supersaturated'.
+   * If the current phase is not 'Supersaturated', a notification will be shown.
+   */
+  /*******  c69b180c-729f-42ad-bfd4-7d9750a9b06f  *******/
   const seedCrystal = () => {
     if (currentPhase === 'Supersaturated') {
       setIsSeeded(true);
@@ -450,6 +555,19 @@ const SolutionsLab: React.FC<SolutionsLabProps> = ({ activityID }) => {
           <div className="flex justify-center gap-4 mt-6">
             <button className="px-6 py-3 bg-indigo-500 text-white font-bold rounded-full hover:bg-indigo-400" onClick={submitCheckpoint}>Submit Checkpoint</button>
             <button className="px-6 py-3 bg-red-500 text-white font-bold rounded-full hover:bg-red-400" onClick={resetTrial}>Reset Trial</button>
+            <div className="flex justify-center mt-4">
+              <button
+                className={`px-6 py-3 font-bold rounded-full transition ${isFinalSubmitBlocked || retries !== 3
+                  ? 'bg-gray-600 text-gray-400 cursor-not-allowed'
+                  : 'bg-green-600 text-white hover:bg-green-500'
+                  }`}
+                onClick={finalSubmit}
+                disabled={isFinalSubmitBlocked || retries !== 3}
+              >
+                Final Submit Lab
+              </button>
+            </div>
+
           </div>
 
           <div className="text-center mt-4">

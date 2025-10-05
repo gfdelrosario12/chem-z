@@ -10,6 +10,8 @@ import {
   Building2,
   GraduationCap,
   BookOpen,
+  EyeOff,
+  Eye,
 } from "lucide-react";
 import {
   Card,
@@ -61,6 +63,10 @@ const RegisterPage: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [successMessage, setSuccessMessage] = useState("");
   const [generalError, setGeneralError] = useState("");
+  const [showPassword, setShowPassword] = useState(false)
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false)
+  const [registeredUser, setRegisteredUser] = useState<any>(null);
+
 
   const roles: Role[] = [
     {
@@ -202,50 +208,23 @@ const RegisterPage: React.FC = () => {
     setSuccessMessage("");
 
     try {
-      // Prepare data for API (exclude confirmPassword and unused role-specific fields)
       const { confirmPassword, ...baseData } = formData;
 
-      // Only include role-specific fields based on selected role
+      // Role-specific data filtering
       let apiData = { ...baseData };
       if (formData.role === "ADMIN") {
-        apiData = {
-          password: baseData.password,
-          email: baseData.email,
-          role: baseData.role,
-          firstName: baseData.firstName,
-          middleName: baseData.middleName,
-          lastName: baseData.lastName,
-          department: baseData.department
-        };
+        apiData = { ...baseData, department: baseData.department };
       } else if (formData.role === "STUDENT") {
-        apiData = {
-          password: baseData.password,
-          email: baseData.email,
-          role: baseData.role,
-          firstName: baseData.firstName,
-          middleName: baseData.middleName,
-          lastName: baseData.lastName,
-          gradeLevel: baseData.gradeLevel
-        };
+        apiData = { ...baseData, gradeLevel: baseData.gradeLevel };
       } else if (formData.role === "TEACHER") {
-        apiData = {
-          password: baseData.password,
-          email: baseData.email,
-          role: baseData.role,
-          firstName: baseData.firstName,
-          middleName: baseData.middleName,
-          lastName: baseData.lastName,
-          subject: baseData.subject
-        };
+        apiData = { ...baseData, subject: baseData.subject };
       }
 
       const response = await fetch(
         `${process.env.NEXT_PUBLIC_API_BASE_URL}/users/register`,
         {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify(apiData),
         }
       );
@@ -253,23 +232,22 @@ const RegisterPage: React.FC = () => {
       const result = await response.json();
 
       if (!response.ok) {
-        if (response.status === 400 && result.message) {
-          // Handle specific validation errors from backend
-          if (result.message.includes("email")) {
-            setErrors({ email: "Email already exists" });
-          } else {
-            setGeneralError(result.message);
-          }
+        if (result.error) {
+          setGeneralError(result.error);
         } else {
-          setGeneralError(
-            result.message || "Registration failed. Please try again."
-          );
+          setGeneralError("Registration failed. Please try again.");
         }
         return;
       }
 
-      // Success
-      setSuccessMessage("Account created successfully! You can now sign in.");
+      // ✅ Success: display username + info
+      setSuccessMessage(result.message || "Account created successfully!");
+      setRegisteredUser({
+        username: result.username,
+        ...result.user,
+      });
+
+      // Reset form
       setFormData({
         password: "",
         confirmPassword: "",
@@ -284,9 +262,7 @@ const RegisterPage: React.FC = () => {
       });
     } catch (error) {
       console.error("Registration error:", error);
-      setGeneralError(
-        "Network error. Please check your connection and try again."
-      );
+      setGeneralError("Network error. Please check your connection.");
     } finally {
       setIsLoading(false);
     }
@@ -308,8 +284,8 @@ const RegisterPage: React.FC = () => {
                 value={formData.department || ""}
                 onChange={handleChange}
                 className={`w-full pl-10 pr-3 py-2 border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-800 dark:text-gray-100 dark:border-gray-600 ${errors.department
-                    ? "border-red-500 focus:ring-red-500 focus:border-red-500"
-                    : "border-gray-300"
+                  ? "border-red-500 focus:ring-red-500 focus:border-red-500"
+                  : "border-gray-300"
                   }`}
               >
                 <option value="">Select department</option>
@@ -340,8 +316,8 @@ const RegisterPage: React.FC = () => {
                 value={formData.gradeLevel || ""}
                 onChange={handleChange}
                 className={`w-full pl-10 pr-3 py-2 border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-800 dark:text-gray-100 dark:border-gray-600 ${errors.gradeLevel
-                    ? "border-red-500 focus:ring-red-500 focus:border-red-500"
-                    : "border-gray-300"
+                  ? "border-red-500 focus:ring-red-500 focus:border-red-500"
+                  : "border-gray-300"
                   }`}
               >
                 <option value="">Select grade level</option>
@@ -372,8 +348,8 @@ const RegisterPage: React.FC = () => {
                 value={formData.subject || ""}
                 onChange={handleChange}
                 className={`w-full pl-10 pr-3 py-2 border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-800 dark:text-gray-100 dark:border-gray-600 ${errors.subject
-                    ? "border-red-500 focus:ring-red-500 focus:border-red-500"
-                    : "border-gray-300"
+                  ? "border-red-500 focus:ring-red-500 focus:border-red-500"
+                  : "border-gray-300"
                   }`}
               >
                 <option value="">Select subject</option>
@@ -435,13 +411,45 @@ const RegisterPage: React.FC = () => {
 
                 {/* Success Message */}
                 {successMessage && (
-                  <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-md p-3">
-                    <div className="flex">
-                      <CheckCircle2 className="h-5 w-5 text-green-400" />
-                      <p className="ml-3 text-sm text-green-800 dark:text-green-200">
+                  <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-md p-3 space-y-2">
+                    <div className="flex items-center">
+                      <CheckCircle2 className="h-5 w-5 text-green-500" />
+                      <p className="ml-3 text-sm text-green-800 dark:text-green-200 font-medium">
                         {successMessage}
                       </p>
                     </div>
+
+                    {registeredUser && (
+                      <div className="mt-2 bg-white/70 dark:bg-gray-800/50 border border-green-200 dark:border-green-800 rounded-md p-3 text-sm">
+                        <p className="text-gray-700 dark:text-gray-200">
+                          <strong>Generated Username:</strong> <span className="text-blue-600 font-semibold">{registeredUser.username}</span>
+                        </p>
+                        <p className="text-gray-700 dark:text-gray-200">
+                          <strong>Name:</strong> {registeredUser.firstName} {registeredUser.middleName} {registeredUser.lastName}
+                        </p>
+                        <p className="text-gray-700 dark:text-gray-200">
+                          <strong>Email:</strong> {registeredUser.email}
+                        </p>
+                        <p className="text-gray-700 dark:text-gray-200">
+                          <strong>Role:</strong> {registeredUser.role}
+                        </p>
+                        {registeredUser.gradeLevel && (
+                          <p className="text-gray-700 dark:text-gray-200">
+                            <strong>Grade Level:</strong> {registeredUser.gradeLevel}
+                          </p>
+                        )}
+                        {registeredUser.department && (
+                          <p className="text-gray-700 dark:text-gray-200">
+                            <strong>Department:</strong> {registeredUser.department}
+                          </p>
+                        )}
+                        {registeredUser.subject && (
+                          <p className="text-gray-700 dark:text-gray-200">
+                            <strong>Subject:</strong> {registeredUser.subject}
+                          </p>
+                        )}
+                      </div>
+                    )}
                   </div>
                 )}
 
@@ -455,8 +463,8 @@ const RegisterPage: React.FC = () => {
                       <label
                         key={role.value}
                         className={`relative flex cursor-pointer rounded-lg border p-3 focus:outline-none transition-colors ${formData.role === role.value
-                            ? "border-blue-600 bg-blue-50 dark:border-blue-500 dark:bg-blue-900/20"
-                            : "border-gray-200 bg-white hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:hover:bg-gray-700"
+                          ? "border-blue-600 bg-blue-50 dark:border-blue-500 dark:bg-blue-900/20"
+                          : "border-gray-200 bg-white hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:hover:bg-gray-700"
                           }`}
                       >
                         <input
@@ -511,8 +519,8 @@ const RegisterPage: React.FC = () => {
                         value={formData.firstName}
                         onChange={handleChange}
                         className={`w-full pl-10 pr-3 py-2 border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-800 dark:text-gray-100 dark:border-gray-600 ${errors.firstName
-                            ? "border-red-500 focus:ring-red-500 focus:border-red-500"
-                            : "border-gray-300"
+                          ? "border-red-500 focus:ring-red-500 focus:border-red-500"
+                          : "border-gray-300"
                           }`}
                         placeholder="John"
                       />
@@ -538,8 +546,8 @@ const RegisterPage: React.FC = () => {
                       value={formData.lastName}
                       onChange={handleChange}
                       className={`w-full px-3 py-2 border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-800 dark:text-gray-100 dark:border-gray-600 ${errors.lastName
-                          ? "border-red-500 focus:ring-red-500 focus:border-red-500"
-                          : "border-gray-300"
+                        ? "border-red-500 focus:ring-red-500 focus:border-red-500"
+                        : "border-gray-300"
                         }`}
                       placeholder="Doe"
                     />
@@ -587,8 +595,8 @@ const RegisterPage: React.FC = () => {
                       value={formData.email}
                       onChange={handleChange}
                       className={`w-full pl-10 pr-3 py-2 border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-800 dark:text-gray-100 dark:border-gray-600 ${errors.email
-                          ? "border-red-500 focus:ring-red-500 focus:border-red-500"
-                          : "border-gray-300"
+                        ? "border-red-500 focus:ring-red-500 focus:border-red-500"
+                        : "border-gray-300"
                         }`}
                       placeholder="john@example.com"
                     />
@@ -612,17 +620,24 @@ const RegisterPage: React.FC = () => {
                     <div className="relative">
                       <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
                       <input
-                        type="password"
+                        type={showPassword ? "text" : "password"}
                         id="password"
                         name="password"
                         value={formData.password}
                         onChange={handleChange}
-                        className={`w-full pl-10 pr-3 py-2 border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-800 dark:text-gray-100 dark:border-gray-600 ${errors.password
-                            ? "border-red-500 focus:ring-red-500 focus:border-red-500"
-                            : "border-gray-300"
+                        className={`w-full pl-10 pr-10 py-2 border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-800 dark:text-gray-100 dark:border-gray-600 ${errors.password
+                          ? "border-red-500 focus:ring-red-500 focus:border-red-500"
+                          : "border-gray-300"
                           }`}
                         placeholder="••••••••"
                       />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword(!showPassword)}
+                        className="absolute inset-y-0 right-0 flex items-center pr-3 text-gray-500 hover:text-gray-700"
+                      >
+                        {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                      </button>
                     </div>
                     {errors.password && (
                       <p className="text-sm text-red-600 dark:text-red-400">
@@ -641,17 +656,24 @@ const RegisterPage: React.FC = () => {
                     <div className="relative">
                       <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
                       <input
-                        type="password"
+                        type={showConfirmPassword ? "text" : "password"}
                         id="confirmPassword"
                         name="confirmPassword"
                         value={formData.confirmPassword}
                         onChange={handleChange}
-                        className={`w-full pl-10 pr-3 py-2 border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-800 dark:text-gray-100 dark:border-gray-600 ${errors.confirmPassword
-                            ? "border-red-500 focus:ring-red-500 focus:border-red-500"
-                            : "border-gray-300"
+                        className={`w-full pl-10 pr-10 py-2 border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-800 dark:text-gray-100 dark:border-gray-600 ${errors.confirmPassword
+                          ? "border-red-500 focus:ring-red-500 focus:border-red-500"
+                          : "border-gray-300"
                           }`}
                         placeholder="••••••••"
                       />
+                      <button
+                        type="button"
+                        onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                        className="absolute inset-y-0 right-0 flex items-center pr-3 text-gray-500 hover:text-gray-700"
+                      >
+                        {showConfirmPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                      </button>
                     </div>
                     {errors.confirmPassword && (
                       <p className="text-sm text-red-600 dark:text-red-400">
@@ -660,6 +682,7 @@ const RegisterPage: React.FC = () => {
                     )}
                   </div>
                 </div>
+
 
                 {/* Submit Button */}
                 <button

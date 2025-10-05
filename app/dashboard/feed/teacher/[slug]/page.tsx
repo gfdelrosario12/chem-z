@@ -86,7 +86,7 @@ export default function CreateActivityPage() {
 
       // Only ACTIVITY has file upload
       if (type === "ACTIVITY" && file) {
-        const presignRes = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/activities/presigned-url`, {
+        const presignRes = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/activities/presigned-url/document`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ fileName: file.name, contentType: file.type }),

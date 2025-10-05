@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import axios from 'axios';
 
 // --- INTERFACES AND TYPES ---
 type IntermolecularForce = 'Standard' | 'LDF' | 'Dipole-Dipole' | 'Hydrogen-Bonding' | 'Strong IMF';
@@ -36,60 +37,168 @@ const getBaseSpeed = (T: number) => (T / 150) * 1.5;
 // Define Checkpoint Keys and Descriptions
 // --- Checkpoint Definitions ---
 // --- Checkpoint Definitions (6 total) ---
-const CHECKPOINTS: Record<string, {
-  name: string;
-  instruction: string;
-  criteria: (T: number, P: number, phase: Phase, IMF: IntermolecularForce) => boolean;
-  feedback: string;
-}> = {
-  'solid_baseline': {
-    name: 'CP1: Baseline – Solid Phase (1pt)',
-    instruction: "Set temperature T = 155 K, pressure P = 1.0 atm, phase = Solid, and IMF = Hydrogen-Bonding.",
-    criteria: (T: number, P: number, phase: Phase, IMF: IntermolecularForce) =>
-      phase === 'Solid' && IMF === 'Hydrogen-Bonding' && T >= 150 && T <= 160 && P >= 0.9 && P <= 1.1,
-    feedback: "✅ Correct! Particles are vibrating in a solid lattice.",
+type IMFType = "Strong" | "Weak" | "None";
+type PhaseType = "Solid" | "Liquid" | "Gas" | "Unknown";
+
+const CHECKPOINTS = {
+  cp1: {
+    name: "CP1: Strong IMF – Baseline (1pt)",
+    instruction: "Set IMF = Strong, T = 150 K, P = 1 atm.",
+    criteria: (T: number, P: number, phase: PhaseType, IMF: IMFType) =>
+      IMF === "Strong" && T >= 145 && T <= 155 && P >= 0.9 && P <= 1.1,
+    hint: (T: number, P: number, phase: PhaseType, IMF: IMFType) => {
+      if (IMF !== "Strong") return "Hint: Set IMF to Strong.";
+      if (T < 145 || T > 155) return "Hint: Adjust temperature to around 150 K.";
+      if (P < 0.9 || P > 1.1) return "Hint: Adjust pressure to around 1 atm.";
+      return null;
+    },
   },
 
-  'solid_to_liquid': {
-    name: 'CP2: Solid to Liquid (1pt)',
-    instruction: "Set temperature T = 280 K, phase = Liquid (melting point crossed), pressure P = 1.0 atm.",
-    criteria: (T, P, phase, IMF) =>
-      phase === 'Liquid' && T >= 250 && T <= 320,
-    feedback: "✅ Correct! The lattice broke down; substance is melting."
+  cp2: {
+    name: "CP2: Strong IMF – Increase Temperature (1pt)",
+    instruction: "Keep IMF = Strong, raise T to 300 K.",
+    criteria: (T: number, P: number, phase: PhaseType, IMF: IMFType) =>
+      IMF === "Strong" && T >= 295 && T <= 305,
+    hint: (T: number, P: number, phase: PhaseType, IMF: IMFType) => {
+      if (IMF !== "Strong") return "Hint: IMF should remain Strong.";
+      if (T < 295 || T > 305) return "Hint: Raise temperature to around 300 K.";
+      return null;
+    },
   },
 
-  'liquid_to_gas': {
-    name: 'CP3: Liquid to Gas (1pt)',
-    instruction: "Set temperature T = 420 K, phase = Gas, pressure P = 1.0 atm.",
-    criteria: (T, P, phase, IMF) =>
-      phase === 'Gas' && T >= 400,
-    feedback: "✅ Correct! The liquid vaporized into gas."
+  cp3: {
+    name: "CP3: Strong IMF – Heat from 400–450 K (optional drop to 0.5 atm) (1pt)",
+    instruction:
+      "Keep IMF = Strong, raise T between 400–450 K, optionally drop P to 0.5 atm.",
+    criteria: (T: number, P: number, phase: PhaseType, IMF: IMFType) =>
+      IMF === "Strong" && T >= 400 && T <= 450 && P >= 0.4 && P <= 1.0,
+    hint: (T: number, P: number, phase: PhaseType, IMF: IMFType) => {
+      if (IMF !== "Strong") return "Hint: IMF should remain Strong.";
+      if (T < 400 || T > 450) return "Hint: Increase temperature between 400–450 K.";
+      if (P < 0.4 || P > 1.0) return "Hint: Optionally adjust pressure closer to 0.5 atm.";
+      return null;
+    },
   },
 
-  'gas_to_liquid': {
-    name: 'CP4: Gas to Liquid (1pt)',
-    instruction: "Set temperature T = 350 K, pressure P = 3.0 atm, phase = Liquid to condense gas.",
-    criteria: (T, P, phase, IMF) =>
-      phase === 'Liquid' && T < 400 && P >= 3,
-    feedback: "✅ Correct! Gas condensed back into liquid."
+  cp4: {
+    name: "CP4: Strong IMF – Compression (1pt)",
+    instruction: "Keep IMF = Strong, set T = 350 K, raise P to 3–4 atm.",
+    criteria: (T: number, P: number, phase: PhaseType, IMF: IMFType) =>
+      IMF === "Strong" && T >= 345 && T <= 355 && P >= 3 && P <= 4,
+    hint: (T: number, P: number, phase: PhaseType, IMF: IMFType) => {
+      if (IMF !== "Strong") return "Hint: IMF should remain Strong.";
+      if (T < 345 || T > 355) return "Hint: Set temperature around 350 K.";
+      if (P < 3 || P > 4) return "Hint: Raise pressure to 3–4 atm.";
+      return null;
+    },
   },
 
-  'effect_of_imf': {
-    name: 'CP5: Compare IMF Strengths (1pt)',
-    instruction: "Repeat CP1–CP4 for IMF = LDF (Weak), Dipole-Dipole (Medium), Hydrogen-Bonding (Strong). Keep same T & P as before.",
-    criteria: (T, P, phase, IMF) =>
-      IMF === 'LDF' || IMF === 'Dipole-Dipole' || IMF === 'Hydrogen-Bonding',
-    feedback: "🔬 Observation noted! You successfully compared how different IMF strengths affect particle motion and phase change.",
+  cp5: {
+    name: "CP5: Weak IMF – Baseline (1pt)",
+    instruction: "Set IMF = Weak, T = 150 K, P = 1 atm.",
+    criteria: (T: number, P: number, phase: PhaseType, IMF: IMFType) =>
+      IMF === "Weak" && T >= 145 && T <= 155 && P >= 0.9 && P <= 1.1,
+    hint: (T: number, P: number, phase: PhaseType, IMF: IMFType) => {
+      if (IMF !== "Weak") return "Hint: Set IMF to Weak.";
+      if (T < 145 || T > 155) return "Hint: Adjust temperature to around 150 K.";
+      if (P < 0.9 || P > 1.1) return "Hint: Adjust pressure to around 1 atm.";
+      return null;
+    },
   },
 
-  'speed_distribution': {
-    name: 'CP6: Speed Distribution (Histogram) (1pt)',
-    instruction: "Set temperature T = 450 K, phase = Gas, pressure P = 1.0 atm. Observe particle speed histogram.",
-    criteria: (T, P, phase, IMF) =>
-      phase === 'Gas' && T >= 450,
-    feedback: "📊 Well done! You captured the shift in particle speeds at higher temperatures as expected from KMT.",
+  cp6: {
+    name: "CP6: Weak IMF – Increase Temperature (1pt)",
+    instruction: "Keep IMF = Weak, raise T to 300 K.",
+    criteria: (T: number, P: number, phase: PhaseType, IMF: IMFType) =>
+      IMF === "Weak" && T >= 295 && T <= 305,
+    hint: (T: number, P: number, phase: PhaseType, IMF: IMFType) => {
+      if (IMF !== "Weak") return "Hint: IMF should remain Weak.";
+      if (T < 295 || T > 305) return "Hint: Raise temperature to around 300 K.";
+      return null;
+    },
   },
+
+  cp7: {
+    name: "CP7: Weak IMF – Heat from 400–450 K (optional drop to 0.5 atm) (1pt)",
+    instruction:
+      "Keep IMF = Weak, heat from 400–450 K, optionally drop P to 0.5 atm.",
+    criteria: (T: number, P: number, phase: PhaseType, IMF: IMFType) =>
+      IMF === "Weak" && T >= 400 && T <= 450 && P >= 0.4 && P <= 1.0,
+    hint: (T: number, P: number, phase: PhaseType, IMF: IMFType) => {
+      if (IMF !== "Weak") return "Hint: IMF should remain Weak.";
+      if (T < 400 || T > 450) return "Hint: Increase temperature between 400–450 K.";
+      if (P < 0.4 || P > 1.0) return "Hint: Optionally adjust pressure closer to 0.5 atm.";
+      return null;
+    },
+  },
+
+  cp8: {
+    name: "CP8: Weak IMF – Compression (1pt)",
+    instruction: "IMF = Weak, Keep T = 350 K, raise P to 3–4 atm.",
+    criteria: (T: number, P: number, phase: PhaseType, IMF: IMFType) =>
+      IMF === "Weak" && T >= 345 && T <= 355 && P >= 3 && P <= 4,
+    hint: (T: number, P: number, phase: PhaseType, IMF: IMFType) => {
+      if (IMF !== "Weak") return "Hint: Set IMF to None.";
+      if (T < 345 || T > 355) return "Hint: Keep temperature around 350 K.";
+      if (P < 3 || P > 4) return "Hint: Raise pressure to 3–4 atm.";
+      return null;
+    },
+  },
+
+  cp9: {
+    name: "CP9: None IMF – Baseline (1pt)",
+    instruction: "Set IMF = None, T = 150 K, P = 1 atm.",
+    criteria: (T: number, P: number, phase: PhaseType, IMF: IMFType) =>
+      IMF === "None" && T >= 145 && T <= 155 && P >= 0.9 && P <= 1.1,
+    hint: (T: number, P: number, phase: PhaseType, IMF: IMFType) => {
+      if (IMF !== "None") return "Hint: Set IMF to None.";
+      if (T < 145 || T > 155) return "Hint: Adjust temperature to around 150 K.";
+      if (P < 0.9 || P > 1.1) return "Hint: Adjust pressure to around 1 atm.";
+      return null;
+    },
+  },
+
+  cp10: {
+    name: "CP10: None IMF – Increase Temperature (1pt)",
+    instruction: "IMF = None, raise T to 300 K.",
+    criteria: (T: number, P: number, phase: PhaseType, IMF: IMFType) =>
+      IMF === "None" && T >= 295 && T <= 305,
+    hint: (T: number, P: number, phase: PhaseType, IMF: IMFType) => {
+      if (IMF !== "None") return "Hint: IMF should remain None.";
+      if (T < 295 || T > 305) return "Hint: Raise temperature to around 300 K.";
+      return null;
+    },
+  },
+
+  cp11: {
+    name: "CP11: None IMF – Heat from 400–450 K (optional drop to 0.5 atm) (1pt)",
+    instruction:
+      "IMF = None, heat from 400–450 K, optionally drop P to 0.5 atm.",
+    criteria: (T: number, P: number, phase: PhaseType, IMF: IMFType) =>
+      IMF === "None" && T >= 400 && T <= 450 && P >= 0.4 && P <= 1.0,
+    hint: (T: number, P: number, phase: PhaseType, IMF: IMFType) => {
+      if (IMF !== "None") return "Hint: IMF should remain None.";
+      if (T < 400 || T > 450) return "Hint: Increase temperature between 400–450 K.";
+      if (P < 0.4 || P > 1.0) return "Hint: Optionally adjust pressure closer to 0.5 atm.";
+      return null;
+    },
+  },
+
+  cp12: {
+    name: "CP12: None IMF – Compression (1pt)",
+    instruction: "IMF = None, Keep T = 350 K, raise P to 3–4 atm.",
+    criteria: (T: number, P: number, phase: PhaseType, IMF: IMFType) =>
+      IMF === "None" && T >= 345 && T <= 355 && P >= 3 && P <= 4,
+    hint: (T: number, P: number, phase: PhaseType, IMF: IMFType) => {
+      if (IMF !== "None") return "Hint: IMF should remain None.";
+      if (T < 345 || T > 355) return "Hint: Keep temperature around 350 K.";
+      if (P < 3 || P > 4) return "Hint: Raise pressure to 3–4 atm.";
+      return null;
+    },
+  },
+
 };
+
 
 // --- Lab Glass Visualizer Component (UPDATED) ---
 const LabGlassVisualizer = ({ temperature, currentPhase, substanceType }: { temperature: number, currentPhase: string, substanceType: SubstanceType }) => {
@@ -286,12 +395,18 @@ const LabGlassVisualizer = ({ temperature, currentPhase, substanceType }: { temp
 
 
 export default function App({ activityID }: { activityID: string }) {
+  const activityId = activityID;
+  const storedStudentId = typeof window !== "undefined" ? localStorage.getItem("userId") : null;
+  const [studentId, setStudentId] = useState<string | null>(storedStudentId);
   // --- State for UI and Control (unchanged) ---
+  const [retries, setRetries] = useState<number | null>(null);
   const [temperature, setTemperature] = useState(150); // K
   const [pressure, setPressure] = useState(1.0); // atm
   const [substanceType, setSubstanceType] = useState<SubstanceType>('Standard');
   const [points, setPoints] = useState(0);
   const [notification, setNotification] = useState({ message: 'Welcome to the KMT Lab! Use the heater and piston to explore phase changes.', color: 'text-yellow-400' });
+  const [loading, setLoading] = useState(true);
+  const [submitted, setSubmitted] = useState(false);
 
   // State to track completed checkpoints 
   const [completedCheckpoints, setCompletedCheckpoints] = useState<Record<string, boolean>>({});
@@ -304,30 +419,31 @@ export default function App({ activityID }: { activityID: string }) {
   const pressureRef = useRef(pressure);
   const substanceRef = useRef(substanceType);
 
+  const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL;
+
   // Update Refs when state changes
   useEffect(() => { tempRef.current = temperature; }, [temperature]);
   useEffect(() => { pressureRef.current = pressure; }, [pressure]);
   useEffect(() => { substanceRef.current = substanceType; }, [substanceType]);
 
+  useEffect(() => {
+    async function fetchRetries() {
+      try {
+        const res = await axios.get(`${baseUrl}/activities/${activityId}/retries/${studentId}`);
+        if (res.data <= 0) setSubmitted(true); // lock if no retries left
+      } catch (err) {
+        console.error("Error fetching retries", err);
+      } finally {
+        setLoading(false);
+      }
+    }
+    fetchRetries();
+  }, [activityId, studentId]);
   // Derived State (for UI clarity)
   const currentPhase = temperature <= MELTING_POINT ? 'Solid' : (temperature <= BOILING_POINT ? 'Liquid' : 'Gas');
 
-  const captureScreenshot = async (): Promise<Blob | null> => {
-    const canvas = canvasRef.current;
-    if (!canvas) {
-      showNotification("Canvas not found!", "red");
-      return null;
-    }
-
-    return new Promise((resolve) => {
-      canvas.toBlob((blob) => resolve(blob), "image/png");
-    });
-  };
-
   const saveScore = async (score: number) => {
     try {
-      const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL;
-
       const res = await fetch(`${baseUrl}/activities/save-score`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -344,52 +460,6 @@ export default function App({ activityID }: { activityID: string }) {
     } catch (err) {
       console.error(err);
       showNotification("❌ Failed to save simulation score.", "red", 5000);
-    }
-  };
-
-  const uploadScreenshotToS3 = async () => {
-    try {
-      const blob = await captureScreenshot();
-      if (!blob) {
-        showNotification("Failed to capture screenshot", "red");
-        return;
-      }
-
-      const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL;
-
-      // 1️⃣ Ask backend for a presigned URL in the "proofs" folder
-      const presignRes = await fetch(`${baseUrl}/activities/presigned-url/proof`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          fileName: `screenshot_${Date.now()}.png`,
-          contentType: "image/png",
-        }),
-      });
-
-      if (!presignRes.ok) throw new Error("Failed to get presigned URL");
-
-      const { url, fileName, s3Key } = await presignRes.json();
-
-      // 2️⃣ Upload file to S3
-      const uploadRes = await fetch(url, {
-        method: "PUT",
-        headers: { "Content-Type": "image/png" },
-        body: blob,
-      });
-
-      if (!uploadRes.ok) throw new Error("S3 upload failed");
-
-      // 3️⃣ Construct final public URL
-      const fileUrl = url.split("?")[0];
-
-      showNotification("✅ Screenshot uploaded!", "green", 5000);
-
-      return { fileUrl, fileName, s3Key };
-    } catch (err) {
-      console.error("Upload error", err);
-      showNotification("Upload failed!", "red", 5000);
-      return null;
     }
   };
 
@@ -546,114 +616,111 @@ export default function App({ activityID }: { activityID: string }) {
   }, []);
 
   // --- Checkpoint Submission Logic (unchanged) ---
-  const submitCheckpoint = () => {
-    let taskKey = '';
-    let pointsAwarded = 1;
+  // --- Checkpoint Submission Logic (simplified) ---
+  type CheckpointKey = keyof typeof CHECKPOINTS;
+  // --- Submit a single checkpoint ---
+  const submitCheckpoint = (checkpointKey: keyof typeof CHECKPOINTS) => {
+    const cp = CHECKPOINTS[checkpointKey];
+    if (!cp) return;
 
-    for (const key in CHECKPOINTS) {
-      if (key in CHECKPOINTS && CHECKPOINTS[key].criteria(temperature, pressure, currentPhase, substanceType as IntermolecularForce)) {
-        taskKey = key;
-        break;
-      }
-    }
+    const currentPhase = temperature <= MELTING_POINT ? 'Solid' : (temperature <= BOILING_POINT ? 'Liquid' : 'Gas');
 
-    if (taskKey === '' && (completedCheckpoints['solid_baseline'] && completedCheckpoints['solid_to_liquid'] && completedCheckpoints['liquid_to_gas'] && completedCheckpoints['gas_to_liquid'])) {
-      showNotification('All Phase Change Checkpoints Complete! Submit your external data (CP5, CP6) using the Final Submit button.', 'yellow', 6000);
+    // Map substanceType to IMFType for criteria check
+    const mapSubstanceToIMFType = (substance: SubstanceType): IMFType => {
+      if (substance === "Strong IMF") return "Strong";
+      if (substance === "Weak IMF") return "Weak";
+      return "None";
+    };
+    // Check if criteria met
+    const isCorrect = cp.criteria(temperature, pressure, currentPhase, mapSubstanceToIMFType(substanceType));
+
+    if (completedCheckpoints[checkpointKey]) {
+      showNotification(`${cp.name} already completed. No points awarded.`, 'orange');
       return;
     }
 
-
-    if (taskKey) {
-      const name = CHECKPOINTS[taskKey].name;
-      const feedbackMsg = CHECKPOINTS[taskKey].feedback; // get feedback
-
-      if (!completedCheckpoints[taskKey]) {
-        setPoints(p => p + pointsAwarded);
-        setCompletedCheckpoints(prev => ({ ...prev, [taskKey]: true }));
-
-        // Show points notification
-        showNotification(`${name} successfully submitted! (+${pointsAwarded} Pt)`, 'lime', 4000);
-
-        // Show feedback notification after a short delay
-        setTimeout(() => {
-          showNotification(feedbackMsg, 'cyan', 6000);
-        }, 1000);
-
-      } else {
-        showNotification(`${name} already completed. No points awarded.`, 'orange');
-      }
-    }
-
-  };
-
-  // --- Final Submission Logic (unchanged) ---
-  const finalSubmission = () => {
-    const completedSimulationCheckpoints = Object.keys(completedCheckpoints)
-      .filter(key => key.startsWith('solid') || key.startsWith('liquid') || key.startsWith('gas'))
-      .length;
-
-    if (completedSimulationCheckpoints === 4) {
-      const fullScore = 100;
-      setPoints(fullScore);
-      showNotification(`FINAL SUBMISSION: Simulation complete! Total Score: ${fullScore} points. Saving...`, 'green', 7000);
-      saveScore(fullScore);
+    if (isCorrect) {
+      // Add point only if correct
+      setPoints(p => p + 1);
+      setCompletedCheckpoints(prev => ({ ...prev, [checkpointKey]: true }));
+      showNotification(`${cp.name} successfully submitted! (+1 Pt)`, 'lime', 4000);
     } else {
-      showNotification(`FINAL SUBMISSION: Only ${completedSimulationCheckpoints} of 4 simulation checkpoints completed. Complete all steps to save full points.`, 'yellow', 7000);
+      // Show hint if incorrect
+      getHintForCheckpoint(checkpointKey);
     }
   };
 
-  // --- Hint Logic (unchanged) ---
-  const getHint = () => {
-    const checkpointKeys = ['solid_baseline', 'solid_to_liquid', 'liquid_to_gas', 'gas_to_liquid'];
-    let nextCheckpointKey = null;
-
-    // Find the next uncompleted simulation checkpoint
-    for (const key of checkpointKeys) {
-      if (!completedCheckpoints[key]) {
-        nextCheckpointKey = key;
-        break;
-      }
-    }
-
-    if (!nextCheckpointKey) {
-      showNotification("All primary simulation checkpoints (CP1-CP4) are complete! Focus on CP5/CP6 and the Final Submission.", 'green', 6000);
-      return;
-    }
-
-    const currentT = temperature;
-    const currentP = pressure;
-    const currentIMF = substanceType;
-    const nextCPName = CHECKPOINTS[nextCheckpointKey].name;
-
-    let hintMessage = `Hint for ${nextCPName}: `;
-    let hintColor = 'cyan';
-
-    switch (nextCheckpointKey) {
-      case 'solid_baseline':
-        // Fixed formatting from **Strong IMF** to <b>Strong IMF</b> for notification
-        hintMessage += `You must start with a <b>Strong IMF</b> substance. Ensure your <b>Temperature</b> is near the minimum (${150}K) and <b>Pressure</b> is low (${1.0} atm).`;
-        if (currentIMF !== 'Strong IMF') hintMessage = "Hint: Switch the <b>Substance Type</b> to <b>Strong IMF</b> first.";
-        break;
-      case 'solid_to_liquid':
-        hintMessage += `The substance is currently solid. You need to <b>add energy</b> to break the lattice structure. Try increasing the <b>Temperature</b> above ${MELTING_POINT}K.`;
-        if (currentT < MELTING_POINT) hintMessage += ` (Current T: ${currentT}K. Target > ${MELTING_POINT}K)`;
-        break;
-      case 'liquid_to_gas':
-        hintMessage += `The substance is liquid. To turn it into a gas (Vapor State), you must increase the <b>Temperature</b> further to overcome all intermolecular forces. Try heating above ${BOILING_POINT}K.`;
-        if (currentT < BOILING_POINT) hintMessage += ` (Current T: ${currentT}K. Target ≥ ${BOILING_POINT}K)`;
-        break;
-      case 'gas_to_liquid':
-        hintMessage += `The substance is gas. To condense it back to a liquid, you need to either <b>cool it down</b> or <b>increase the pressure</b> (compression). Try raising the <b>Pressure</b> to ${3.0} atm or higher while keeping T below ${BOILING_POINT}K.`;
-        if (currentP < 3.0) hintMessage += ` (Current P: ${currentP.toFixed(1)} atm. Target ≥ ${3.0} atm)`;
-        break;
-    }
-
-    // Using dangerouslySetInnerHTML to allow HTML for bolding in the notification message
-    setNotification({ message: hintMessage, color: `text-${hintColor}-400` });
+  // --- Hint for a specific checkpoint ---
+  const getHintForCheckpoint = (checkpointKey: keyof typeof CHECKPOINTS) => {
+    const cp = CHECKPOINTS[checkpointKey];
+    if (!cp) return;
+    let hintMessage: string | null = typeof cp.hint === "function"
+      ? cp.hint(temperature, pressure, currentPhase, mapSubstanceToIMFType(substanceType))
+      : (typeof cp.hint === "string" ? cp.hint : 'Adjust controls to meet criteria.');
+    setNotification({ message: hintMessage || 'Adjust controls to meet criteria.', color: 'text-cyan-400' });
     setTimeout(() => {
       setNotification({ message: 'Ready to continue the experiment.', color: 'text-yellow-400' });
-    }, 7000);
+    }, 5000);
   };
+
+  // --- Final Submission ---
+  const finalSubmission = async () => {
+    if (!retries || retries <= 0) {
+      showNotification("❌ No retries left. Lab is locked.", "red", 5000);
+      setSubmitted(true);
+      return;
+    }
+
+    const checkpointKeys = Object.keys(CHECKPOINTS) as (keyof typeof CHECKPOINTS)[];
+    const completedSimulation = checkpointKeys.filter(k => completedCheckpoints[k]).length;
+
+    if (completedSimulation === checkpointKeys.length) {
+      const fullScore = 100;
+      setPoints(fullScore);
+      showNotification(`✅ FINAL SUBMISSION: Simulation complete! Total Score: ${fullScore} points. Saving...`, "green", 7000);
+
+      try {
+        const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL;
+
+        // --- Save score ---
+        const scoreRes = await fetch(`${baseUrl}/activities/${activityId}/score/${studentId}?score=${fullScore}`, {
+          method: "PATCH",
+        });
+        if (!scoreRes.ok) throw new Error("Failed to save score");
+
+        // --- Increment retries ---
+        const retryRes = await fetch(`${baseUrl}/activities/${activityId}/retries/${studentId}`, {
+          method: "PATCH",
+        });
+        if (!retryRes.ok) throw new Error("Failed to increment retries");
+
+        const retryData = await retryRes.json();
+        setRetries(retryData.retries);
+        if (retryData.retries <= 0) setSubmitted(true);
+
+        showNotification("✅ Score successfully saved and retries updated!", "green", 5000);
+      } catch (err) {
+        console.error(err);
+        showNotification("❌ Failed to submit lab to backend.", "red", 5000);
+      }
+    } else {
+      showNotification(`⚠️ Only ${completedSimulation} of ${checkpointKeys.length} simulation checkpoints completed. Complete all to get full score.`, "yellow", 7000);
+    }
+  };
+
+  if (loading) {
+    return <div>Loading lab...</div>;
+  }
+
+  // --- Completely lock lab if submitted & retries 0 ---
+  if (submitted) {
+    return (
+      <div className="flex flex-col items-center justify-center h-screen bg-gray-900 text-white gap-4">
+        <h2 className="text-2xl font-bold">Lab Completed</h2>
+        <p>No retries left. Access is locked.</p>
+      </div>
+    );
+  }
 
   // --- Simulation Control Effects (unchanged) ---
   useEffect(() => {
@@ -683,38 +750,112 @@ export default function App({ activityID }: { activityID: string }) {
     showNotification('Trial fully reset. Points and checkpoints cleared. Particles returned to solid lattice (150K, 1.0 atm).', 'red', 5000);
   };
 
+  // --- Checkpoints Renderer Updated to Show Instructions ---
+  const CheckpointsGrid = ({
+    checkpoints,
+    completedCheckpoints,
+    onSubmit
+  }: {
+    checkpoints: typeof CHECKPOINTS;
+    completedCheckpoints: Record<string, boolean>;
+    onSubmit: (key: keyof typeof CHECKPOINTS) => void;
+  }) => {
+    return (
+      <div className="flex flex-col space-y-4 p-4">
+        {Object.entries(checkpoints).map(([key, cp]) => {
+          const completed = completedCheckpoints[key];
+          return (
+            <div
+              key={key}
+              className={`border rounded-lg p-4 shadow-md transition-colors ${completed ? 'bg-green-200' : 'bg-gray-800'
+                }`}
+            >
+              <h3 className={`font-bold text-lg mb-2 ${completed ? 'text-gray-500' : 'text-white'}`}>
+                {cp.name}
+              </h3>
+
+              {/* Show either instruction or hint */}
+              <p className={`text-sm mb-3 ${completed ? 'text-gray-400' : 'text-gray-200'}`}>
+                {completed ? `✅ Completed` : cp.instruction}
+              </p>
+
+              <button
+                onClick={() => onSubmit(key as keyof typeof CHECKPOINTS)}
+                className={`w-full py-1 px-2 rounded ${completed ? 'bg-gray-500 cursor-not-allowed' : 'bg-blue-500 hover:bg-blue-600'
+                  } text-white font-medium transition`}
+                disabled={completed}
+              >
+                {completed ? 'Completed' : 'Attempt / Show Hint'}
+              </button>
+            </div>
+          );
+        })}
+      </div>
+    );
+  };
+
+
   // --- Controls (unchanged) ---
   const renderControls = () => (
     <div className="flex justify-center gap-6 flex-wrap p-3 bg-gray-700 rounded-lg">
-      <div className="text-center p-2 bg-gray-600 rounded-lg w-40">
-        <label className="block text-sm mb-2 font-medium text-yellow-300">
-          Heater (Temperature: $T$)
+      {/* Temperature Control */}
+      <div className="flex flex-col items-center bg-gray-600 p-2 rounded-lg w-40">
+        <label className="text-sm mb-2 font-medium text-yellow-300">
+          Heater (T)
         </label>
         <input
           type="range"
-          min="150"
-          max="500"
+          min={150}
+          max={500}
           value={temperature}
           onChange={(e) => setTemperature(parseInt(e.target.value))}
-          className="control-input"
+          className="w-full mb-2"
         />
-        <div className="text-lg font-bold mt-1 text-white">{temperature} K</div>
+        <input
+          type="number"
+          min={150}
+          max={500}
+          value={temperature}
+          onChange={(e) => {
+            let val = parseInt(e.target.value);
+            if (isNaN(val)) val = 150;
+            if (val < 150) val = 150;
+            if (val > 500) val = 500;
+            setTemperature(val);
+          }}
+          className="w-full text-center rounded bg-gray-800 text-white font-bold"
+        />
       </div>
 
-      <div className="text-center p-2 bg-gray-600 rounded-lg w-40">
-        <label className="block text-sm mb-2 font-medium text-yellow-300">
-          Piston (Pressure: $P$)
+      {/* Pressure Control */}
+      <div className="flex flex-col items-center bg-gray-600 p-2 rounded-lg w-40">
+        <label className="text-sm mb-2 font-medium text-yellow-300">
+          Piston (P)
         </label>
         <input
           type="range"
-          min="0.1"
-          max="5.0"
-          step="0.1"
+          min={0.1}
+          max={5.0}
+          step={0.1}
           value={pressure}
           onChange={(e) => setPressure(parseFloat(e.target.value))}
-          className="control-input"
+          className="w-full mb-2"
         />
-        <div className="text-lg font-bold mt-1 text-white">{pressure.toFixed(1)} atm</div>
+        <input
+          type="number"
+          min={0.1}
+          max={5.0}
+          step={0.1}
+          value={pressure}
+          onChange={(e) => {
+            let val = parseFloat(e.target.value);
+            if (isNaN(val)) val = 1.0;
+            if (val < 0.1) val = 0.1;
+            if (val > 5.0) val = 5.0;
+            setPressure(val);
+          }}
+          className="w-full text-center rounded bg-gray-800 text-white font-bold"
+        />
       </div>
     </div>
   );
@@ -737,6 +878,20 @@ export default function App({ activityID }: { activityID: string }) {
     height: '10px',
     borderRadius: '0 0 12px 12px'
   };
+
+  function mapSubstanceToIMFType(substanceType: string): IMFType {
+    switch (substanceType) {
+      case 'Standard':
+        return 'None';
+      case 'Weak IMF':
+        return 'Weak';
+      case 'Strong IMF':
+        return 'Strong';
+      default:
+        console.warn(`Unknown substance type: ${substanceType}, defaulting to 'None'`);
+        return 'None';
+    }
+  }
 
   return (
     <div className="lab-container mx-auto p-4 bg-gray-800 text-white rounded-xl shadow-2xl">
@@ -813,17 +968,9 @@ export default function App({ activityID }: { activityID: string }) {
           {/* Controls and Final Submission */}
           <div className="flex items-start gap-4 mb-4">
             <div className="flex-grow">
+              <div className="text-xl font-bold mt-2 text-center pb-4">Laboratory Controls</div>
               {renderControls()}
             </div>
-
-            {/* FINAL SUBMISSION BUTTON */}
-            <button
-              className="w-32 h-20 bg-teal-500 text-gray-900 font-extrabold text-sm rounded-lg hover:bg-teal-400 transition transform hover:scale-105 active:scale-95 shadow-xl flex flex-col justify-center items-center"
-              onClick={finalSubmission}
-            >
-              <span className="text-2xl">📤</span>
-              FINAL SUBMIT
-            </button>
           </div>
 
           {/* STATUS DISPLAY (Points, Phase, Notification) */}
@@ -877,24 +1024,23 @@ export default function App({ activityID }: { activityID: string }) {
 
           {/* Action Buttons (with Hint button) */}
           <div className="flex justify-center gap-4 mt-6">
-            <button
-              className="px-6 py-3 bg-indigo-500 text-white font-bold rounded-full hover:bg-indigo-400 transition transform hover:scale-105 active:scale-95 shadow-lg"
-              onClick={uploadScreenshotToS3}
-            >
-              <span className="inline-block align-text-bottom mr-1">📸</span> Upload Checkpoint Screenshot
-            </button>
-            <button
-              className="px-6 py-3 bg-sky-500 text-white font-bold rounded-full hover:bg-sky-400 transition transform hover:scale-105 active:scale-95 shadow-lg"
-              onClick={getHint}
-            >
-              <span className="inline-block align-text-bottom mr-1">💡</span> Show Hint
-            </button>
-            <button
-              className="px-6 py-3 bg-red-500 text-white font-bold rounded-full hover:bg-red-400 transition transform hover:scale-105 active:scale-95 shadow-lg"
-              onClick={resetTrial}
-            >
-              <span className="inline-block align-text-bottom mr-1">⟲</span> Reset Trial (Clears Points & Tracker)
-            </button>
+            {/* Bottom Control Buttons */}
+            <div className="flex justify-center gap-4 mt-4">
+              <button
+                className="px-6 py-3 bg-teal-500 text-gray-900 font-extrabold rounded-full hover:bg-teal-400 transition transform hover:scale-105 active:scale-95 shadow-lg"
+                onClick={finalSubmission}
+              >
+                📤 Final Submit
+              </button>
+
+              <button
+                className="px-6 py-3 bg-red-500 text-white font-bold rounded-full hover:bg-red-400 transition transform hover:scale-105 active:scale-95 shadow-lg"
+                onClick={resetTrial}
+              >
+                ⟲ Reset Trial
+              </button>
+            </div>
+
           </div>
 
         </div>
@@ -905,31 +1051,12 @@ export default function App({ activityID }: { activityID: string }) {
             Experiment Checkpoints Guidance (6 Total)
           </h2>
 
-          <div className="space-y-4">
-            {Object.entries(CHECKPOINTS).map(([key, cp], index) => (
-              <div key={key} className={`p-3 rounded-lg transition ${completedCheckpoints[key] ? 'bg-green-800/70 border-l-4 border-green-400' : 'bg-gray-800/70 border-l-4 border-red-400'}`}>
-                <div className="flex justify-between items-center mb-1">
-                  <h3 className={`font-bold ${completedCheckpoints[key] ? 'text-green-300' : 'text-white'}`}>
-                    {cp.name}
-                  </h3>
-                  <span className={`text-xs font-mono px-2 py-0.5 rounded-full ${completedCheckpoints[key] ? 'bg-green-500 text-black' : 'bg-red-500 text-white'}`}>
-                    {completedCheckpoints[key] ? 'DONE' : 'PENDING'}
-                  </span>
-                </div>
-                <p className="text-sm text-gray-300">
-                  {cp.instruction}
-                </p>
-                {/* Show current state for the simulation-validated checkpoints (CP1-CP4) */}
-                {index < 4 && (
-                  <p className="text-xs text-blue-400 mt-2 p-1 bg-gray-700 rounded">
-                    Status: {cp.criteria(temperature, pressure, currentPhase, substanceType as IntermolecularForce) ?
-                      'Criteria Met (Ready to Submit)' :
-                      'Criteria Not Met. Adjust controls.'}
-                  </p>
-                )}
-              </div>
-            ))}
-          </div>
+          <CheckpointsGrid
+            checkpoints={CHECKPOINTS}
+            completedCheckpoints={completedCheckpoints}
+            onSubmit={submitCheckpoint}
+          />
+
         </div>
       </div>
 
@@ -939,3 +1066,11 @@ export default function App({ activityID }: { activityID: string }) {
     </div>
   );
 }
+
+function setSubmitted(arg0: boolean) {
+  throw new Error('Function not implemented.');
+}
+function setLoading(arg0: boolean) {
+  throw new Error('Function not implemented.');
+}
+

@@ -11,18 +11,11 @@ type Course = { id: number; courseName: string; activities: Activity[] }
 type Stat = { label: string; value: string; icon: any; color: string }
 
 export default function DashboardStudent({ user }: { user: any }) {
-  const [announcements, setAnnouncements] = useState<Announcement[]>([])
   const [activities, setActivities] = useState<Activity[]>([])
   const [stats, setStats] = useState<Stat[]>([])
 
   useEffect(() => {
     if (!user?.id) return
-
-    // Fetch recent announcements
-    fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/students/${user.id}/announcements`, { credentials: "include" })
-      .then(res => res.json())
-      .then(data => setAnnouncements(Array.isArray(data) ? data : []))
-      .catch(() => setAnnouncements([]))
 
     // Fetch enrolled courses (with activities)
     fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/students/${user.id}/courses`, { credentials: "include" })
@@ -95,25 +88,6 @@ export default function DashboardStudent({ user }: { user: any }) {
       </div>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        {/* Announcements */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2"><Bell className="h-5 w-5" /> Recent Announcements</CardTitle>
-            <CardDescription>Stay updated</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {announcements.length ? announcements.map(a => (
-              <div key={a.id} className="border-b pb-4 last:pb-0 last:border-none flex justify-between">
-                <div>
-                  <h4 className="font-medium">{a.title}</h4>
-                  <p className="text-sm">{a.content}</p>
-                  <p className="text-xs text-gray-500">{new Date(a.date).toLocaleDateString()}</p>
-                </div>
-                <Badge className={getPriorityColor(a.priority)}>{a.priority}</Badge>
-              </div>
-            )) : <p className="text-gray-500 dark:text-gray-400">No announcements available.</p>}
-          </CardContent>
-        </Card>
 
         {/* Activities */}
         <Card>
