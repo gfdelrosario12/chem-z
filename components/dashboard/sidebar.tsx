@@ -35,6 +35,7 @@ const getNavigationItems = (role: string) => {
       return [
         { name: "Home", href: "/dashboard", icon: Home },
         { name: "Class Feed", href: "/dashboard/feed", icon: BookOpen },
+        { name: "Student Grades", href: "/dashboard/feed/teacher/student-grades", icon: GraduationCap },
       ]
     case "admin":
       return [
