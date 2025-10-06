@@ -442,27 +442,6 @@ export default function App({ activityID }: { activityID: string }) {
   // Derived State (for UI clarity)
   const currentPhase = temperature <= MELTING_POINT ? 'Solid' : (temperature <= BOILING_POINT ? 'Liquid' : 'Gas');
 
-  const saveScore = async (score: number) => {
-    try {
-      const res = await fetch(`${baseUrl}/activities/save-score`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          activityNumber: activityID,
-          score,
-        }),
-
-      });
-
-      if (!res.ok) throw new Error("Failed to save score");
-
-      showNotification(`✅ Simulation Score (${score}) successfully saved!`, "green", 5000);
-    } catch (err) {
-      console.error(err);
-      showNotification("❌ Failed to save simulation score.", "red", 5000);
-    }
-  };
-
   // Determine particle radius based on substance type
   const getParticleRadius = (substance: SubstanceType): number => {
     if (substance === 'Weak IMF') return 10;
