@@ -399,7 +399,6 @@ export default function App({ activityID }: { activityID: string }) {
   const storedStudentId = typeof window !== "undefined" ? localStorage.getItem("userId") : null;
   const [studentId, setStudentId] = useState<string | null>(storedStudentId);
   // --- State for UI and Control (unchanged) ---
-  const [retries, setRetries] = useState<number | null>(null);
   const [temperature, setTemperature] = useState(150); // K
   const [pressure, setPressure] = useState(1.0); // atm
   const [substanceType, setSubstanceType] = useState<SubstanceType>('Standard');
@@ -644,12 +643,6 @@ export default function App({ activityID }: { activityID: string }) {
 
   // --- Final Submission ---
   const finalSubmission = async () => {
-    if (!retries || retries <= 0) {
-      showNotification("❌ No retries left. Lab is locked.", "red", 5000);
-      setSubmitted(true);
-      return;
-    }
-
     const checkpointKeys = Object.keys(CHECKPOINTS) as (keyof typeof CHECKPOINTS)[];
     const completedSimulation = checkpointKeys.filter(k => completedCheckpoints[k]).length;
 
@@ -667,16 +660,6 @@ export default function App({ activityID }: { activityID: string }) {
         });
         if (!scoreRes.ok) throw new Error("Failed to save score");
 
-        // --- Increment retries ---
-        const retryRes = await fetch(`${baseUrl}/activities/${activityId}/retries/${studentId}`, {
-          method: "PATCH",
-        });
-        if (!retryRes.ok) throw new Error("Failed to increment retries");
-
-        const retryData = await retryRes.json();
-        setRetries(retryData.retries);
-        if (retryData.retries <= 0) setSubmitted(true);
-
         showNotification("✅ Score successfully saved and retries updated!", "green", 5000);
       } catch (err) {
         console.error(err);
@@ -686,20 +669,6 @@ export default function App({ activityID }: { activityID: string }) {
       showNotification(`⚠️ Only ${completedSimulation} of ${checkpointKeys.length} simulation checkpoints completed. Complete all to get full score.`, "yellow", 7000);
     }
   };
-
-  if (loading) {
-    return <div>Loading lab...</div>;
-  }
-
-  // --- Completely lock lab if submitted & retries 0 ---
-  if (submitted) {
-    return (
-      <div className="flex flex-col items-center justify-center h-screen bg-gray-900 text-white gap-4">
-        <h2 className="text-2xl font-bold">Lab Completed</h2>
-        <p>No retries left. Access is locked.</p>
-      </div>
-    );
-  }
 
   // --- Simulation Control Effects (unchanged) ---
   useEffect(() => {
