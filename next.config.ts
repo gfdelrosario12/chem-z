@@ -1,11 +1,15 @@
-import type { NextConfig } from "next";
+/** @type {import('next').NextConfig} */
+const nextConfig = {
+  // 1. This is where 'output' needs to be, as a top-level property
 
-const nextConfig: NextConfig = {
+
+  // 2. The 'eslint' property should ONLY contain ESLint-related options
   eslint: {
-    // Warning: This allows production builds to successfully complete even if
-    // your project has ESLint errors.
+    // ... your eslint configs ...
     ignoreDuringBuilds: true,
   },
+  
+  // ... any other top-level configs ...
 };
 
-export default nextConfig;
+module.exports = nextConfig;

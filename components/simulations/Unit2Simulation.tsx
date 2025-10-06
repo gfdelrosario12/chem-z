@@ -140,48 +140,6 @@ const SolutionsLab: React.FC<SolutionsLabProps> = ({ activityID }) => {
     (key) => !completedCheckpoints[key]
   );
 
-  // Also, track retries from backend
-  const [retries, setRetries] = useState<number | null>(null);
-
-  // Fetch current retries whenever points/checkpoints change
-  useEffect(() => {
-    const fetchRetries = async () => {
-      if (!studentId) return;
-      try {
-        const res = await fetch(`${baseUrl}/activities/${activityID}/retries/${studentId}`);
-        const data = await res.json();
-        setRetries(data);
-      } catch (err) {
-        console.error("Failed to fetch retries:", err);
-      }
-    };
-    fetchRetries();
-  }, [completedCheckpoints, studentId, baseUrl, activityID]);
-
-  if (retries === null) {
-    // Loading state while fetching retries
-    return (
-      <div className="flex items-center justify-center h-screen text-white text-lg">
-        Loading Lab...
-      </div>
-    );
-  }
-
-  // Block entire lab if retries = 3 (or blocked state)
-  if (retries >= 3) {
-    return (
-      <div className="flex flex-col items-center justify-center h-screen text-center text-white bg-gray-900 p-4 rounded-xl">
-        <h1 className="text-3xl font-bold text-red-500 mb-4">Lab Access Blocked</h1>
-        <p className="text-lg text-gray-300 mb-4">
-          You have reached the maximum number of retries for this lab. Final submission is no longer allowed.
-        </p>
-        <p className="text-gray-400">
-          Please contact your instructor if you think this is an error or need further assistance.
-        </p>
-      </div>
-    );
-  }
-
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const animationFrameRef = useRef<number | null>(null);
 
@@ -557,12 +515,11 @@ const SolutionsLab: React.FC<SolutionsLabProps> = ({ activityID }) => {
             <button className="px-6 py-3 bg-red-500 text-white font-bold rounded-full hover:bg-red-400" onClick={resetTrial}>Reset Trial</button>
             <div className="flex justify-center mt-4">
               <button
-                className={`px-6 py-3 font-bold rounded-full transition ${isFinalSubmitBlocked || retries !== 3
+                className={`px-6 py-3 font-bold rounded-full transition
                   ? 'bg-gray-600 text-gray-400 cursor-not-allowed'
                   : 'bg-green-600 text-white hover:bg-green-500'
                   }`}
                 onClick={finalSubmit}
-                disabled={isFinalSubmitBlocked || retries !== 3}
               >
                 Final Submit Lab
               </button>
