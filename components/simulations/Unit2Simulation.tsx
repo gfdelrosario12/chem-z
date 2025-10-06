@@ -98,13 +98,13 @@ const CHECKPOINTS: {
 
   molality_extension: {
     name: "CP7: Molality vs. Molarity (Bonus 1 pt)",
-    instruction: "Set V=250mL, Add 7.5g NaCl, T=25°C. Task: Record M and m.",
-    hint: "Check your recorded molality and molarity values. Are they correct?",
+    instruction: "Prepare a 0.5 M NaCl solution: Measure 250 mL of water, then dissolve about 7.3–7.6 g of NaCl. Keep the temperature at 25°C. Task: Record the calculated molarity (M) and molality (m).",
+    hint: "Both M and m should be close to 0.5 if calculated correctly.",
     requiredState: (n, M, m, T, Phase) =>
-      T === 25 &&
-      n > 0.127 && n < 0.130 &&
-      M > 0.51 && M < 0.52 &&
-      m > 0.51 && m < 0.52,
+      T >= 24 && T <= 26 && // allow ±1°C tolerance
+      M >= 0.48 && M <= 0.52 &&
+      m >= 0.48 && m <= 0.52 &&
+      n >= 0.126 && n <= 0.132, // ~7.4g NaCl → 0.126 mol
   },
 
 
@@ -515,14 +515,12 @@ const SolutionsLab: React.FC<SolutionsLabProps> = ({ activityID }) => {
             <button className="px-6 py-3 bg-red-500 text-white font-bold rounded-full hover:bg-red-400" onClick={resetTrial}>Reset Trial</button>
             <div className="flex justify-center mt-4">
               <button
-                className={`px-6 py-3 font-bold rounded-full transition
-                  ? 'bg-gray-600 text-gray-400 cursor-not-allowed'
-                  : 'bg-green-600 text-white hover:bg-green-500'
-                  }`}
+                className="px-6 py-3 font-bold rounded-full transition bg-green-600 text-white hover:bg-green-500"
                 onClick={finalSubmit}
               >
                 Final Submit Lab
               </button>
+
             </div>
 
           </div>
