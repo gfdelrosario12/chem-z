@@ -37,7 +37,6 @@ export default function LoginPage() {
       }
 
       const data = await res.json()
-      console.log("✅ Login success:", data)
       if (data.id) localStorage.setItem("userId", data.id)
       if (data.firstName) localStorage.setItem("firstName", data.firstName)
       if (data.role) localStorage.setItem("role", data.role)

@@ -9,6 +9,9 @@ interface EditUserModalProps {
   onChange: (data: Partial<User>) => void;
   onClose: () => void;
   onSubmit: () => void;
+  departments: string[];
+  subjects: string[];
+  gradeLevels: string[];
 }
 
 export default function EditUserModal({
@@ -16,6 +19,9 @@ export default function EditUserModal({
   onChange,
   onClose,
   onSubmit,
+  departments,
+  subjects,
+  gradeLevels,
 }: EditUserModalProps) {
   const [oldPassword, setOldPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
@@ -57,7 +63,7 @@ export default function EditUserModal({
       });
 
       const result = await res.json();
-      console.log("🔹 Backend returned:", result); // ✅ log full backend response
+      console.log("🔹 Backend returned:", result);
 
       if (res.ok) {
         setMessage(result.message || "User info updated successfully ✅");
@@ -76,6 +82,7 @@ export default function EditUserModal({
       <div className="bg-white dark:bg-gray-900 p-6 rounded-lg shadow-lg w-96">
         <h2 className="text-xl font-bold mb-4 text-blue-600">Update User</h2>
 
+        {/* Username (read-only) */}
         <input
           type="text"
           placeholder="Username"
@@ -111,36 +118,53 @@ export default function EditUserModal({
           placeholder="Email"
           value={data.email || ""}
           onChange={(e) => onChange({ ...data, email: e.target.value })}
-          className="w-full p-2 mb-2 border rounded focus:ring-2 focus:ring-blue-500"
+          className="w-full p-2 mb-4 border rounded focus:ring-2 focus:ring-blue-500"
         />
 
-        {/* Role-specific fields */}
+        {/* Role-based dropdowns */}
         {data.role === "ADMIN" && (
-          <input
-            type="text"
-            placeholder="Department"
+          <select
             value={(data as Admin).department || ""}
             onChange={(e) => onChange({ ...data, department: e.target.value })}
-            className="w-full p-2 mb-2 border rounded focus:ring-2 focus:ring-blue-500"
-          />
+            className="w-full p-2 mb-2 border rounded bg-blue-50 dark:bg-gray-700 focus:ring-2 focus:ring-blue-500"
+          >
+            <option value="">Select Department</option>
+            {departments.map((dept) => (
+              <option key={dept} value={dept}>
+                {dept}
+              </option>
+            ))}
+          </select>
         )}
+
         {data.role === "TEACHER" && (
-          <input
-            type="text"
-            placeholder="Subject"
+          <select
             value={(data as Teacher).subject || ""}
             onChange={(e) => onChange({ ...data, subject: e.target.value })}
-            className="w-full p-2 mb-2 border rounded focus:ring-2 focus:ring-blue-500"
-          />
+            className="w-full p-2 mb-2 border rounded bg-blue-50 dark:bg-gray-700 focus:ring-2 focus:ring-blue-500"
+          >
+            <option value="">Select Subject</option>
+            {subjects.map((subject) => (
+              <option key={subject} value={subject}>
+                {subject}
+              </option>
+            ))}
+          </select>
         )}
+
         {data.role === "STUDENT" && (
-          <input
-            type="text"
-            placeholder="Grade Level"
+          <select
             value={(data as Student).gradeLevel || ""}
             onChange={(e) => onChange({ ...data, gradeLevel: e.target.value })}
-            className="w-full p-2 mb-2 border rounded focus:ring-2 focus:ring-blue-500"
-          />
+            className="w-full p-2 mb-2 border rounded bg-blue-50 dark:bg-gray-700 focus:ring-2 focus:ring-blue-500"
+          >
+            <option value="">Select Grade Level</option>
+            {gradeLevels.map((level) => (
+              <option key={level} value={level}>
+                {level}
+              </option>
+            ))}
+          </select>
         )}
 
         {/* Password change section */}
@@ -158,6 +182,7 @@ export default function EditUserModal({
             className="w-full p-2 border rounded focus:ring-2 focus:ring-blue-500"
           />
         </div>
+
         <div className="relative mb-2">
           <input
             type={showPassword ? "text" : "password"}
@@ -202,7 +227,6 @@ export default function EditUserModal({
             >
               Update Info
             </button>
-
           </div>
         </div>
       </div>

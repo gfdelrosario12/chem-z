@@ -24,7 +24,7 @@ export default function ClassFeedPage() {
   const [loading, setLoading] = useState(true);
 
   // Replace with actual student ID from auth/session
-  const studentId = 3;
+  const studentId = typeof window !== "undefined" ? localStorage.getItem("userId") : null;
 
   useEffect(() => {
     if (courseId) fetchActivities(courseId);
@@ -111,11 +111,10 @@ export default function ClassFeedPage() {
                     {(activity.type === "QUIZ" || activity.type === "LAB") && (
                       <Button
                         size="sm"
-                        className={`${
-                          activity.type === "QUIZ"
+                        className={`${activity.type === "QUIZ"
                             ? "bg-green-600 hover:bg-green-700"
                             : "bg-purple-600 hover:bg-purple-700"
-                        } text-white`}
+                          } text-white`}
                         onClick={() =>
                           router.push(
                             `/dashboard/${activity.type.toLowerCase()}/${activity.id}/${activity.activityNumber ?? activity.id}`
