@@ -19,9 +19,14 @@ export function UserManagement() {
   });
 
   // Dropdown options
-  const departments = ["Computer Science", "Engineering", "Business"];
-  const subjects = ["Mathematics", "Science", "English", "ICT"];
-  const gradeLevels = ["Grade 7", "Grade 8", "Grade 9", "Grade 10", "Grade 11", "Grade 12"];
+  const departments = ["Science Department"];
+  const subjects = ["General Chemistry",
+    "Organic Chemistry",
+    "Inorganic Chemistry",
+    "Physical Chemistry",
+    "Analytical Chemistry",
+    "Biochemistry",];
+  const gradeLevels = ["Grade 10", "Grade 11", "Grade 12"];
 
   // Fetch all users
   useEffect(() => {
@@ -169,13 +174,12 @@ export function UserManagement() {
                   <td className="px-4 py-3 border-b">{user.email}</td>
                   <td className="px-4 py-3 border-b font-semibold">
                     <span
-                      className={`px-2 py-1 rounded-full text-xs ${
-                        user.role === "ADMIN"
-                          ? "bg-blue-100 text-blue-700 dark:bg-blue-800 dark:text-blue-200"
-                          : user.role === "TEACHER"
+                      className={`px-2 py-1 rounded-full text-xs ${user.role === "ADMIN"
+                        ? "bg-blue-100 text-blue-700 dark:bg-blue-800 dark:text-blue-200"
+                        : user.role === "TEACHER"
                           ? "bg-sky-100 text-sky-700 dark:bg-sky-800 dark:text-sky-200"
                           : "bg-indigo-100 text-indigo-700 dark:bg-indigo-800 dark:text-indigo-200"
-                      }`}
+                        }`}
                     >
                       {user.role}
                     </span>

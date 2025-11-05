@@ -66,7 +66,80 @@ const RegisterPage: React.FC = () => {
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [registeredUser, setRegisteredUser] = useState<any>(null);
+  const [verificationSent, setVerificationSent] = useState(false);
+  const [verificationCode, setVerificationCode] = useState("");
+  const [isEmailVerified, setIsEmailVerified] = useState(false);
+  const [verifyMessage, setVerifyMessage] = useState("");
+  const [isSendingCode, setIsSendingCode] = useState(false);
+  const [isVerifyingCode, setIsVerifyingCode] = useState(false);
 
+  const sendVerificationCode = async () => {
+    if (!formData.email) {
+      setErrors((prev) => ({ ...prev, email: "Email is required" }));
+      return;
+    }
+
+    setIsSendingCode(true);
+    setVerifyMessage("");
+
+    try {
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_API_BASE_URL}/users/send-code`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email: formData.email }),
+        }
+      );
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        setVerifyMessage(result.error || "Failed to send code.");
+        return;
+      }
+
+      setVerificationSent(true);
+      setVerifyMessage("Verification code sent! Please check your email.");
+    } catch (err) {
+      setVerifyMessage("Network error. Try again.");
+    } finally {
+      setIsSendingCode(false);
+    }
+  };
+
+  const verifyCode = async () => {
+    if (!verificationCode.trim()) {
+      setVerifyMessage("Enter the code sent to your email.");
+      return;
+    }
+
+    setIsVerifyingCode(true);
+
+    try {
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_API_BASE_URL}/users/verify-code`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email: formData.email, code: verificationCode }),
+        }
+      );
+
+      const result = await response.json();
+
+      if (result.verified) {
+        setIsEmailVerified(true);
+        setVerifyMessage("✅ Email successfully verified!");
+      } else {
+        setVerifyMessage("❌ Incorrect verification code.");
+      }
+    } catch (err) {
+      setVerifyMessage("Network error.");
+    } finally {
+      setIsVerifyingCode(false);
+    }
+  };
 
   const roles: Role[] = [
     {
@@ -87,9 +160,6 @@ const RegisterPage: React.FC = () => {
   ];
 
   const gradeLevels = [
-    "Grade 7",
-    "Grade 8",
-    "Grade 9",
     "Grade 10",
     "Grade 11",
     "Grade 12",
@@ -105,12 +175,7 @@ const RegisterPage: React.FC = () => {
   ];
 
   const departments = [
-    "Chemistry Department",
     "Science Department",
-    "Academic Affairs",
-    "Student Affairs",
-    "IT Department",
-    "Administration",
   ];
 
   const handleChange = (
@@ -199,6 +264,11 @@ const RegisterPage: React.FC = () => {
     const validationErrors = validateForm();
     if (Object.keys(validationErrors).length > 0) {
       setErrors(validationErrors);
+      return;
+    }
+
+    if (!isEmailVerified) {
+      setGeneralError("Please verify your email before creating an account.");
       return;
     }
 
@@ -586,25 +656,74 @@ const RegisterPage: React.FC = () => {
                   >
                     Email
                   </label>
+
                   <div className="relative">
                     <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+
                     <input
                       type="email"
                       id="email"
                       name="email"
                       value={formData.email}
-                      onChange={handleChange}
-                      className={`w-full pl-10 pr-3 py-2 border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-800 dark:text-gray-100 dark:border-gray-600 ${errors.email
-                        ? "border-red-500 focus:ring-red-500 focus:border-red-500"
-                        : "border-gray-300"
+                      onChange={(e) => {
+                        handleChange(e);
+                        setIsEmailVerified(false);
+                        setVerificationSent(false);
+                        setVerificationCode("");
+                        setVerifyMessage("");
+                      }}
+                      className={`w-full pl-10 pr-32 py-2 border rounded-md text-sm focus:outline-none focus:ring-2 ${errors.email
+                        ? "border-red-500 focus:ring-red-500"
+                        : "border-gray-300 focus:ring-blue-500"
                         }`}
                       placeholder="john@example.com"
                     />
+
+                    {/* ✅ Send Code Button */}
+                    <button
+                      type="button"
+                      onClick={sendVerificationCode}
+                      disabled={isSendingCode || isEmailVerified}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white text-xs px-3 py-1 rounded-md"
+                    >
+                      {isEmailVerified
+                        ? "Verified"
+                        : isSendingCode
+                          ? "Sending..."
+                          : "Send Code"}
+                    </button>
                   </div>
+
                   {errors.email && (
-                    <p className="text-sm text-red-600 dark:text-red-400">
-                      {errors.email}
-                    </p>
+                    <p className="text-sm text-red-600 dark:text-red-400">{errors.email}</p>
+                  )}
+
+                  {/* ✅ Verification Code Input */}
+                  {verificationSent && !isEmailVerified && (
+                    <div className="mt-2 space-y-1">
+                      <input
+                        type="text"
+                        maxLength={6}
+                        value={verificationCode}
+                        onChange={(e) => setVerificationCode(e.target.value)}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-blue-500"
+                        placeholder="Enter verification code"
+                      />
+
+                      <button
+                        type="button"
+                        onClick={verifyCode}
+                        disabled={isVerifyingCode}
+                        className="w-full bg-green-600 hover:bg-green-700 text-white text-sm py-2 rounded-md"
+                      >
+                        {isVerifyingCode ? "Checking..." : "Verify Code"}
+                      </button>
+                    </div>
+                  )}
+
+                  {/* ✅ Message (success or error) */}
+                  {verifyMessage && (
+                    <p className="text-sm text-blue-600 dark:text-blue-400">{verifyMessage}</p>
                   )}
                 </div>
 
