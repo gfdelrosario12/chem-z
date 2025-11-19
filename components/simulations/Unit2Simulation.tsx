@@ -1,568 +1,828 @@
-"use client";
+import React, { useState, useEffect, useRef } from "react";
 
-import React, { useState, useEffect, useRef, useCallback } from "react";
+// --- Types ---
+type MixtureType = "True Solution" | "Colloid" | "Suspension";
+type GameState = "playing" | "reflection" | "finished";
+type DraggedItem = "laser" | "filter" | null;
 
-interface SolutionsLabProps {
-  activityID: string; // ✅ NEW PROP
+interface Particle {
+  id: number;
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
+  size: number;
+  settled: boolean;
+  baseY: number;
 }
 
-const CANVAS_WIDTH = 600;
-const CANVAS_HEIGHT = 350;
-const NACL_MOLAR_MASS_G_MOL = 58.44;
-const SOLUBILITY_25C = 36.0;
-const SOLUBILITY_60C = 37.0;
-
-const getSolubilityLimit = (T: number) => {
-  if (T <= 25) return SOLUBILITY_25C;
-  if (T >= 60) return SOLUBILITY_60C;
-  const slope = (SOLUBILITY_60C - SOLUBILITY_25C) / (60 - 25);
-  return SOLUBILITY_25C + slope * (T - 25);
-};
-
-type PhaseType = "Unsaturated" | "Saturated" | "Supersaturated";
-
-interface Notification {
-  message: string;
-  color: string;
+interface ToolState {
+  x: number;
+  y: number;
+  active: boolean;
 }
 
-const CHECKPOINTS: {
-  [key: string]: {
-    name: string;
-    instruction: string;
-    hint: string;
-    requiredState: (
-      n: number,
-      M: number,
-      m: number,
-      T: number,
-      Phase: PhaseType,
-      isSeeded?: boolean
-    ) => boolean;
-  };
-} = {
-  unsaturated_prepare: {
-    name: "CP1: Prepare Unsaturated (1 pt)",
-    instruction: "Set T=25°C, V=100mL. Add NaCl=2.0g. Task: Record n, M.",
-    hint: "Check your temperature and amount of solute. Are you in the unsaturated range?",
-    requiredState: (n, M, m, T, Phase) =>
-      T === 25 && n > 0.033 && n < 0.036 && Phase === "Unsaturated",
+// --- Constants ---
+const CANVAS_WIDTH = 1000;
+const CANVAS_HEIGHT = 600;
+const BEAKER_X = 500;
+const BEAKER_Y = 320;
+const BEAKER_WIDTH = 200;
+const BEAKER_HEIGHT = 220;
+const LIQUID_LEVEL = 180;
+
+const MIXTURE_PROPERTIES = {
+  "True Solution": {
+    particleCount: 80,
+    particleSize: 2,
+    color: "rgba(173, 216, 230, 0.4)", // transparent light blue
+    particleColor: "#E0F7FA",
+    scattersLight: false,
+    settles: false,
+    leavesResidue: false,
+    speed: 1.5,
   },
-
-  approach_saturation: {
-    name: "CP2: Approach Saturation (1 pt)",
-    instruction: "Add solute until solid remains. Task: Record total dissolved mass, n, M.",
-    hint: "Solution may not be saturated yet. Try adding more solute or check T.",
-    requiredState: (n, M, m, T, Phase) =>
-      T === 25 && n > 0.61 && n < 0.62 && Phase === "Saturated",
+  Colloid: {
+    particleCount: 150,
+    particleSize: 4,
+    color: "rgba(255, 255, 255, 0.6)", // translucent
+    particleColor: "#F3F4F6",
+    scattersLight: true,
+    settles: false,
+    leavesResidue: false,
+    speed: 0.3, // Brownian motion
   },
-
-  supersaturation_ready: {
-    name: "CP3a: Supersaturation Prep (1 pt)",
-    instruction: "Heat to 60°C, dissolve all. Cool to 25°C without disturbance.",
-    hint: "Ensure all solute is dissolved before cooling. Avoid shaking or stirring.",
-    requiredState: (n, M, m, T, Phase) =>
-      T === 25 && n > 0.61 && Phase === "Supersaturated",
+  Suspension: {
+    particleCount: 100,
+    particleSize: 7,
+    color: "rgba(210, 180, 140, 0.3)", // murky
+    particleColor: "#D2B48C",
+    scattersLight: true,
+    settles: true,
+    leavesResidue: true,
+    speed: 1.0, // faster settling
   },
-
-  supersaturation_seeded: {
-    name: "CP3b: Seed Crystal Added (1 pt)",
-    instruction: "Add a seed crystal in the supersaturated solution.",
-    hint: "Crystallization starts only if the seed crystal is added.",
-    requiredState: (n, M, m, T, Phase, isSeeded) => !!isSeeded,
-  },
-
-  temp_effect_25: {
-    name: "CP4: Temperature Effect at 25°C (1 pt)",
-    instruction: "Repeat the saturation at 25°C.",
-    hint: "Ensure the solution reaches saturation at 25°C.",
-    requiredState: (n, M, m, T, Phase) =>
-      T === 25 && Phase === "Saturated" && n > 0.61 && n < 0.62,
-  },
-
-  temp_effect_40: {
-    name: "CP5: Temperature Effect at 40°C (1 pt)",
-    instruction: "Repeat the saturation at 40°C.",
-    hint: "Ensure the solution reaches saturation at 40°C.",
-    requiredState: (n, M, m, T, Phase) =>
-      T === 40 && Phase === "Saturated" && n > 0.61 && n < 0.64,
-  },
-
-  temp_effect_60: {
-    name: "CP6: Temperature Effect at 60°C (1 pt)",
-    instruction: "Repeat the saturation at 60°C.",
-    hint: "Ensure the solution reaches saturation at 60°C.",
-    requiredState: (n, M, m, T, Phase) =>
-      T === 60 && Phase === "Saturated" && n > 0.62 && n < 0.65,
-  },
-
-  molality_extension: {
-    name: "CP7: Molality vs. Molarity (Bonus 1 pt)",
-    instruction: "Prepare a 0.5 M NaCl solution: Measure 250 mL of water, then dissolve about 7.3–7.6 g of NaCl. Keep the temperature at 25°C. Task: Record the calculated molarity (M) and molality (m).",
-    hint: "Both M and m should be close to 0.5 if calculated correctly.",
-    requiredState: (n, M, m, T, Phase) =>
-      T >= 24 && T <= 26 && // allow ±1°C tolerance
-      M >= 0.48 && M <= 0.52 &&
-      m >= 0.48 && m <= 0.52 &&
-      n >= 0.126 && n <= 0.132, // ~7.4g NaCl → 0.126 mol
-  },
-
-
 };
 
-const SolutionsLab: React.FC<SolutionsLabProps> = ({ activityID }) => {
-  // ✅ Log when activityID is received
-  useEffect(() => {
-    console.log("SolutionsLab loaded for activityID:", activityID);
-  }, [activityID]);
-  const studentId = typeof window !== "undefined" ? localStorage.getItem("userId") : null;
-  const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL!;
-  // --- existing states and logic ---
-  const [soluteMass, setSoluteMass] = useState(2.0);
-  const [solventVolume, setSolventVolume] = useState(100);
-  const [temperature, setTemperature] = useState(25);
-  const [isSeeded, setIsSeeded] = useState(false);
-  const [isCooled, setIsCooled] = useState(false);
-  const [wasHeated, setWasHeated] = useState(false);
-  const [points, setPoints] = useState(0);
-  const [feedbacks, setFeedbacks] = useState<Record<string, string>>({});
-  const [completedCheckpoints, setCompletedCheckpoints] = useState<
-    Record<string, boolean>
-  >({});
-  const [notification, setNotification] = useState<Notification>({
-    message:
-      "Welcome to the Solutions Lab! Start by preparing an unsaturated solution (CP1).",
-    color: "text-yellow-400",
-  });
+const LEVELS = {
+  1: {
+    name: "A. True Solution (Salt + Water)",
+    goal: "Observe a homogeneous solution. Stir, use the Laser, and use the Filter.",
+    points: 3.0,
+    mixtureType: "True Solution" as MixtureType,
+    waitTime: 0,
+    reflectionText:
+      "✅ Correct: Clear solution, no scattering (no Tyndall effect), and no residue after filtration. This confirms a True Solution.",
+  },
+  2: {
+    name: "B. Colloidal Solution (Starch + Water)",
+    goal: "Identify light scattering. Stir, use the Laser, use the Filter, and Wait 3 min.",
+    points: 3.5,
+    mixtureType: "Colloid" as MixtureType,
+    waitTime: 180,
+    reflectionText:
+      "✅ Correct: Translucent appearance, light beam visible (Tyndall effect), and no settling after 3 minutes. This confirms a Colloid.",
+  },
+  3: {
+    name: "C. Suspension (Sand + Water)",
+    goal: "Observe settling and filtration. Stir, use the Laser, use the Filter, and Wait 1 min.",
+    points: 3.5,
+    mixtureType: "Suspension" as MixtureType,
+    waitTime: 60,
+    reflectionText:
+      "✅ Correct: Visible particles, heavy light scattering, and particles settled to the bottom. Residue was left on the filter. This confirms a Suspension.",
+  },
+};
 
-  // Add a derived state to check if final submission is allowed
-  const isFinalSubmitBlocked = Object.keys(CHECKPOINTS).some(
-    (key) => !completedCheckpoints[key]
-  );
+// =======================================================================
+// === 🎨 NEW MODERN DRAWING FUNCTIONS 🎨 ===
+// =======================================================================
 
-  const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const animationFrameRef = useRef<number | null>(null);
+/**
+ * Draws a modern-looking beaker with liquid, sheen, and graduation marks.
+ */
+function drawBeaker(
+  ctx: CanvasRenderingContext2D,
+  liquidColor: string,
+  liquidTop: number
+) {
+  ctx.save();
 
-  const n_mol = soluteMass / NACL_MOLAR_MASS_G_MOL;
-  const solventMass_kg = solventVolume / 1000;
-  const solubilityLimit_g = getSolubilityLimit(temperature) * (solventVolume / 100);
+  const beakerLeft = BEAKER_X - BEAKER_WIDTH / 2;
+  const beakerRight = BEAKER_X + BEAKER_WIDTH / 2;
+  const beakerBottom = BEAKER_Y + BEAKER_HEIGHT;
 
-  let dissolvedMass = Math.min(soluteMass, solubilityLimit_g);
-  let currentPhase: PhaseType = 'Unsaturated';
-  let undissolvedMass = 0;
+  // --- 1. Draw Liquid ---
+  ctx.fillStyle = liquidColor;
+  ctx.fillRect(beakerLeft, liquidTop, BEAKER_WIDTH, beakerBottom - liquidTop);
 
-  // Check for supersaturation first (special cooled state)
-  if (isCooled && temperature === 25) {
-    const solubilityAt25C = getSolubilityLimit(25) * (solventVolume / 100);
-    if (soluteMass > solubilityAt25C) {
-      dissolvedMass = soluteMass; // Everything stays dissolved in supersaturated state
-      currentPhase = 'Supersaturated';
-      undissolvedMass = 0;
-    }
-  } else {
-    // Normal saturation logic
-    undissolvedMass = Math.max(0, soluteMass - solubilityLimit_g);
-    if (undissolvedMass > 0.001) {
-      currentPhase = 'Saturated';
-      dissolvedMass = solubilityLimit_g;
-    }
+  // Draw Meniscus (curved top)
+  ctx.fillStyle = "rgba(255, 255, 255, 0.3)";
+  ctx.beginPath();
+  ctx.ellipse(BEAKER_X, liquidTop, BEAKER_WIDTH / 2, 4, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // --- 2. Draw Glass ---
+  ctx.strokeStyle = "rgba(255, 255, 255, 0.7)";
+  ctx.lineWidth = 4;
+  ctx.beginPath();
+  ctx.moveTo(beakerLeft, BEAKER_Y);
+  ctx.lineTo(beakerLeft, beakerBottom);
+  ctx.lineTo(beakerRight, beakerBottom);
+  ctx.lineTo(beakerRight, BEAKER_Y);
+  ctx.stroke();
+
+  // --- 3. Draw Glass Sheen ---
+  ctx.strokeStyle = "rgba(255, 255, 255, 0.3)";
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(beakerLeft + 10, BEAKER_Y + 10);
+  ctx.lineTo(beakerLeft + 10, beakerBottom - 10);
+  ctx.stroke();
+
+  // --- 4. Draw Graduation Marks ---
+  ctx.fillStyle = "rgba(255, 255, 255, 0.5)";
+  ctx.font = "10px Arial";
+  const markStart = BEAKER_Y + BEAKER_HEIGHT - 160; // 50ml
+  const markInterval = 50; // 50ml
+  for (let i = 0; i < 3; i++) {
+    const y = markStart + i * markInterval;
+    const text = `${50 + i * 50}ml`;
+    ctx.fillRect(beakerLeft, y, 15, 1);
+    ctx.fillText(text, beakerLeft - 30, y + 4);
   }
 
-  const dissolved_n_mol = dissolvedMass / NACL_MOLAR_MASS_G_MOL;
-  const molarity = dissolved_n_mol / (solventVolume / 1000);
-  const molality = dissolved_n_mol / solventMass_kg;
+  ctx.restore();
+}
 
-  const showNotification = useCallback((message: string, color: string, duration = 3000) => {
-    setNotification({ message, color: `text-${color}-400` });
-    setTimeout(() => setNotification({ message: 'Ready for the next step.', color: 'text-yellow-400' }), duration);
-  }, []);
+/**
+ * Draws all particles with physics-based effects (glow, alpha).
+ */
+function drawParticles(
+  ctx: CanvasRenderingContext2D,
+  particles: Particle[],
+  particleColor: string,
+  mixtureType: MixtureType
+) {
+  ctx.save();
+  ctx.fillStyle = particleColor;
 
-  const getNextClue = () => {
-    if (!completedCheckpoints['unsaturated_prepare']) {
-      if (temperature !== 25) return "Set temperature to exactly 25°C";
-      if (solventVolume !== 100) return "Set volume to exactly 100mL";
-      if (Math.abs(soluteMass - 2.0) > 0.05) return "Set solute mass to 2.0g";
-      if (currentPhase !== 'Unsaturated') return "Should be Unsaturated - try less solute";
-      return "Values look good! Click Submit Checkpoint";
+  particles.forEach((p) => {
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+
+    // Reset properties for each particle
+    ctx.globalAlpha = 1.0;
+    ctx.shadowBlur = 0;
+
+    if (mixtureType === "Colloid") {
+      // Add a glow to represent light scattering
+      ctx.shadowColor = "white";
+      ctx.shadowBlur = 5;
+    } else if (mixtureType === "True Solution") {
+      // Make them more transparent
+      ctx.globalAlpha = 0.6;
     }
 
-    if (!completedCheckpoints['approach_saturation']) {
-      if (temperature !== 25) return "Keep temperature at 25°C";
-      if (currentPhase !== 'Saturated') return "Add more solute until you see solid at bottom (Saturated)";
-      return "You have a saturated solution! Click Submit Checkpoint";
-    }
+    ctx.fill();
+  });
 
-    if (!completedCheckpoints['supersaturation_ready']) {
-      if (temperature < 50 && !wasHeated) return "First, heat to 60°C to dissolve more solute";
-      if (temperature >= 50 && soluteMass < 37) return "Add solute to ~37g while hot";
-      if (temperature > 25 && soluteMass > 36) return "Now cool back to 25°C carefully";
-      if (currentPhase !== 'Supersaturated') return "Should be Supersaturated - heat to 60°C, add ~37g, cool to 25°C";
-      return "Supersaturated! Click Submit Checkpoint";
-    }
+  ctx.restore();
+}
 
-    if (!completedCheckpoints['supersaturation_seeded']) {
-      if (currentPhase !== 'Supersaturated') return "Need Supersaturated solution first (complete CP3a)";
-      return "Click 'Add Seed Crystal' button, then Submit Checkpoint";
-    }
+/**
+ * Draws a modern laser pointer tool and its beam, including the Tyndall effect.
+ */
+function drawLaser(
+  ctx: CanvasRenderingContext2D,
+  laser: ToolState,
+  scattersLight: boolean,
+  beakerLeft: number,
+  beakerRight: number,
+  liquidTop: number,
+  liquidBottom: number
+) {
+  if (!laser.active) return;
+  ctx.save();
 
-    if (!completedCheckpoints['molality_extension']) {
-      if (Math.abs(solventVolume - 250) > 1) return "Set volume to 250mL";
-      if (Math.abs(soluteMass - 7.3) > 0.1) return "Set solute mass to 7.3g";
-      return "Values correct! Click Submit Checkpoint";
-    }
+  const beamY = laser.y;
 
-    return "All checkpoints complete! Try exploring different conditions.";
-  };
+  // --- 1. Draw Tool Body ---
+  const laserGradient = ctx.createLinearGradient(
+    laser.x - 40, 0, laser.x + 40, 0
+  );
+  laserGradient.addColorStop(0, "#4A5568"); // gray-700
+  laserGradient.addColorStop(0.5, "#A0AEC0"); // gray-500
+  laserGradient.addColorStop(1, "#4A5568");
+  
+  ctx.fillStyle = laserGradient;
+  ctx.fillRect(laser.x - 40, laser.y - 10, 80, 20);
 
-  useEffect(() => {
-    if (temperature >= 50) setWasHeated(true);
-  }, [temperature]);
+  // Draw Lens
+  ctx.fillStyle = "#E53E3E"; // red-600
+  ctx.beginPath();
+  ctx.arc(laser.x + 45, laser.y, 6, 0, Math.PI * 2);
+  ctx.fill();
 
-  useEffect(() => {
-    const solubilityAt25C = getSolubilityLimit(25) * (solventVolume / 100);
-    const massExceeds25CSolubility = soluteMass > solubilityAt25C + 0.5;
+  // --- 2. Draw Laser Beam ---
+  const beamGradient = ctx.createLinearGradient(
+    laser.x + 50, 0, CANVAS_WIDTH, 0
+  );
+  beamGradient.addColorStop(0, "rgba(255, 0, 0, 0.8)");
+  beamGradient.addColorStop(1, "rgba(255, 0, 0, 0.0)");
 
-    // When cooled to 25°C with excess solute that was dissolved at higher temp
-    if (temperature === 25 && massExceeds25CSolubility && wasHeated && !isCooled) {
-      setIsCooled(true);
-      showNotification('Supersaturation achieved! Solution is UNSTABLE. Add seed crystal for CP3b!', 'red', 6000);
-    }
+  ctx.strokeStyle = beamGradient;
+  ctx.lineWidth = 4;
+  ctx.beginPath();
+  ctx.moveTo(laser.x + 50, beamY);
+  ctx.lineTo(CANVAS_WIDTH, beamY);
+  ctx.stroke();
+  
+  // Center glow
+  ctx.strokeStyle = "rgba(255, 200, 200, 0.5)";
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(laser.x + 50, beamY);
+  ctx.lineTo(CANVAS_WIDTH, beamY);
+  ctx.stroke();
 
-    // Reset supersaturation if heated again
-    if (temperature > 30 && isCooled) {
-      setIsCooled(false);
-    }
-  }, [temperature, soluteMass, solventVolume, wasHeated, isCooled, showNotification]);
+  // --- 3. Draw Tyndall Effect ---
+  if (scattersLight && beamY > liquidTop && beamY < liquidBottom) {
+    const tyndallGradient = ctx.createLinearGradient(beakerLeft, 0, beakerRight, 0);
+    tyndallGradient.addColorStop(0, "rgba(255, 100, 100, 0.2)");
+    tyndallGradient.addColorStop(0.5, "rgba(255, 100, 100, 0.6)");
+    tyndallGradient.addColorStop(1, "rgba(255, 100, 100, 0.2)");
 
-  useEffect(() => {
-    if (isSeeded && currentPhase === 'Supersaturated') {
-      setSoluteMass(solubilityLimit_g);
-      setIsCooled(false);
-      setWasHeated(false);
-      showNotification('Crystallization triggered! The solution has returned to a Saturated state.', 'red', 5000);
-    }
-  }, [isSeeded, currentPhase, solubilityLimit_g, showNotification]);
+    ctx.fillStyle = tyndallGradient;
+    ctx.fillRect(beakerLeft, beamY - 6, beakerRight - beakerLeft, 12);
+  }
 
-  const draw = useCallback((ctx: CanvasRenderingContext2D, frameCount: number) => {
-    const width = ctx.canvas.width;
-    const height = ctx.canvas.height;
-    ctx.clearRect(0, 0, width, height);
+  ctx.restore();
+}
 
-    ctx.fillStyle = `rgba(30, 58, 138, ${0.4 + (temperature - 25) / 100})`;
-    ctx.fillRect(0, 0, width, height);
+/**
+ * Draws a modern filter funnel, filter paper, and receiving beaker.
+ */
+function drawFilter(
+  ctx: CanvasRenderingContext2D,
+  filter: ToolState,
+  leavesResidue: boolean,
+  particleColor: string,
+  liquidColor: string
+) {
+  if (!filter.active) return;
+  ctx.save();
 
-    const ionCount = Math.floor(dissolved_n_mol * 1000);
-    for (let i = 0; i < Math.min(ionCount, 150); i++) {
-      const type = i % 2 === 0 ? 'Na+' : 'Cl-';
-      const color = type === 'Na+' ? '#FBBF24' : '#E5E7EB';
-      const speedFactor = 1 + (temperature - 25) / 50;
-      const x = (i * 10 + frameCount * speedFactor) % width;
-      const y = (i * 7 + frameCount * speedFactor) % height;
-      const wobbleX = Math.sin(frameCount * 0.05 + i) * 10;
-      const wobbleY = Math.cos(frameCount * 0.03 + i) * 10;
+  const funnelX = filter.x;
+  const funnelY = filter.y;
+
+  // --- 1. Draw Receiving Beaker ---
+  const beakerBaseY = funnelY + 90;
+  ctx.strokeStyle = "rgba(255, 255, 255, 0.7)";
+  ctx.lineWidth = 2;
+  ctx.strokeRect(funnelX - 25, beakerBaseY - 30, 50, 30);
+  
+  // --- 2. Draw Funnel ---
+  const funnelGradient = ctx.createLinearGradient(
+    funnelX - 30, 0, funnelX + 30, 0
+  );
+  funnelGradient.addColorStop(0, "rgba(255, 255, 255, 0.3)");
+  funnelGradient.addColorStop(0.5, "rgba(255, 255, 255, 0.8)");
+  funnelGradient.addColorStop(1, "rgba(255, 255, 255, 0.3)");
+  
+  ctx.fillStyle = funnelGradient;
+  ctx.strokeStyle = "white";
+  ctx.lineWidth = 1;
+  
+  ctx.beginPath();
+  ctx.moveTo(funnelX - 30, funnelY - 20); // Top left
+  ctx.lineTo(funnelX + 30, funnelY - 20); // Top right
+  ctx.lineTo(funnelX + 10, funnelY + 10); // Bottom right
+  ctx.lineTo(funnelX - 10, funnelY + 10); // Bottom left
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+
+  // Stem
+  ctx.fillRect(funnelX - 5, funnelY + 10, 10, 40);
+
+  // --- 3. Draw Filter Paper (Cone) ---
+  ctx.fillStyle = "rgba(255, 255, 255, 0.9)";
+  ctx.beginPath();
+  ctx.moveTo(funnelX - 25, funnelY - 18);
+  ctx.lineTo(funnelX, funnelY + 5);
+  ctx.lineTo(funnelX + 25, funnelY - 18);
+  ctx.closePath();
+  ctx.fill();
+  
+  // --- 4. Draw Results ---
+  ctx.font = "12px Arial";
+  ctx.textAlign = "center";
+  
+  if (leavesResidue) {
+    // Draw residue on the filter paper
+    ctx.fillStyle = particleColor;
+    for (let i = 0; i < 5; i++) {
       ctx.beginPath();
-      ctx.fillStyle = color;
-      ctx.arc((x + wobbleX) % width, (y + wobbleY) % height, 3, 0, Math.PI * 2);
+      ctx.arc(
+        funnelX - 10 + Math.random() * 20,
+        funnelY - 5 + Math.random() * 5,
+        3, 0, Math.PI * 2
+      );
       ctx.fill();
     }
+    ctx.fillStyle = "black";
+    ctx.fillText("Residue", funnelX, funnelY - 25);
+    
+    // Draw clean liquid in beaker
+    ctx.fillStyle = "rgba(173, 216, 230, 0.6)"; // Clean water color
+    ctx.fillRect(funnelX - 23, beakerBaseY - 10, 46, 8);
+    
+  } else {
+    // Draw clean filter paper
+    ctx.fillStyle = "black";
+    ctx.fillText("Clean", funnelX, funnelY - 25);
+    
+    // Draw original liquid in beaker
+    ctx.fillStyle = liquidColor;
+    ctx.globalAlpha = 0.8;
+    ctx.fillRect(funnelX - 23, beakerBaseY - 10, 46, 8);
+    ctx.globalAlpha = 1.0;
+  }
 
-    if (undissolvedMass > 0.001 && currentPhase === 'Saturated') {
-      const solidHeight = Math.min(20, undissolvedMass / 3);
-      ctx.fillStyle = '#6B7280';
-      ctx.fillRect(0, height - solidHeight, width, solidHeight);
-      for (let i = 0; i < Math.min(100, undissolvedMass * 5); i++) {
-        const x = Math.random() * width;
-        const y = height - solidHeight - Math.random() * 5;
-        ctx.fillStyle = i % 2 === 0 ? '#4B5563' : '#9CA3AF';
-        ctx.fillRect(x, y, 4, 4);
+  ctx.restore();
+}
+
+// =======================================================================
+// === REACT COMPONENT ===
+// =======================================================================
+
+const MixturesAdventure = () => {
+  // --- STATE VARIABLES ---
+  const [currentLevel, setCurrentLevel] = useState(1);
+  const [score, setScore] = useState(0);
+  const [gameState, setGameState] = useState<GameState>("playing");
+  const [message, setMessage] = useState("");
+  const [statusType, setStatusType] = useState("neutral"); // 'neutral', 'success', 'warning'
+  const [maxScore, setMaxScore] = useState(0);
+
+  // Simulation-specific state
+  const [particles, setParticles] = useState<Particle[]>([]);
+  const [currentMixture, setCurrentMixture] =
+    useState<MixtureType>("True Solution");
+  const [isStirred, setIsStirred] = useState(false);
+  const [settleTimer, setSettleTimer] = useState(0);
+
+  // Draggable Tools State
+  const [laser, setLaser] = useState<ToolState>({ x: 150, y: 300, active: false });
+  const [filter, setFilter] = useState<ToolState>({ x: 150, y: 450, active: false });
+  const [draggedItem, setDraggedItem] = useState<DraggedItem>(null);
+
+  // State to track level completion
+  const [actionsPerformed, setActionsPerformed] = useState({
+    stirred: false,
+    laser: false,
+    filtered: false,
+    waited: false,
+  });
+
+  // --- REFS ---
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const animFrame = useRef<number | null>(null);
+  const gameLoopRef = useRef<NodeJS.Timeout | null>(null);
+
+  // --- INITIALIZATION ---
+  useEffect(() => {
+    setMaxScore(Object.values(LEVELS).reduce((sum, level) => sum + level.points, 0));
+    setupLevel(1);
+
+    return () => {
+      if (gameLoopRef.current) clearInterval(gameLoopRef.current);
+      if (animFrame.current) cancelAnimationFrame(animFrame.current);
+    };
+  }, []);
+
+  // --- PARTICLE CREATION ---
+  const initializeParticles = (mixtureType: MixtureType) => {
+    const props = MIXTURE_PROPERTIES[mixtureType];
+    const newParticles: Particle[] = [];
+    const beakerLeft = BEAKER_X - BEAKER_WIDTH / 2 + 10;
+    const beakerRight = BEAKER_X + BEAKER_WIDTH / 2 - 10;
+    const beakerTop = BEAKER_Y + BEAKER_HEIGHT - LIQUID_LEVEL;
+    const beakerBottom = BEAKER_Y + BEAKER_HEIGHT - 10;
+
+    for (let i = 0; i < props.particleCount; i++) {
+      newParticles.push({
+        id: i,
+        x: beakerLeft + Math.random() * (beakerRight - beakerLeft),
+        y: beakerTop + Math.random() * (beakerBottom - beakerTop),
+        vx: (Math.random() - 0.5) * props.speed,
+        vy: (Math.random() - 0.5) * props.speed,
+        size: props.particleSize + Math.random() * (props.particleSize / 2),
+        settled: false,
+        baseY: beakerBottom - 5 - Math.random() * 20, // Stacks particles
+      });
+    }
+    setParticles(newParticles);
+  };
+
+  // --- LEVEL MANAGEMENT ---
+  const setupLevel = (levelNumber: number) => {
+    if (levelNumber > Object.keys(LEVELS).length) {
+      setGameState("finished");
+      setMessage(`Congratulations! You finished all levels! Final Score: ${score}/${maxScore}`);
+      return;
+    }
+
+    const level = LEVELS[levelNumber as keyof typeof LEVELS];
+    setCurrentLevel(levelNumber);
+    setCurrentMixture(level.mixtureType);
+    setMessage("Click 'Stir Mixture' to begin.");
+    setGameState("playing");
+    setStatusType("neutral");
+    
+    // Reset tools and state
+    setLaser(prev => ({ ...prev, active: false }));
+    setFilter(prev => ({ ...prev, active: false }));
+    setIsStirred(false);
+    setSettleTimer(0);
+    setActionsPerformed({
+      stirred: false,
+      laser: false,
+      filtered: false,
+      waited: false,
+    });
+
+    initializeParticles(level.mixtureType);
+  };
+
+  const completeLevel = (points: number) => {
+    if (gameState !== "playing") return; // Prevent double completion
+    setGameState("reflection");
+    setScore(s => s + points);
+    setMessage(`Level ${currentLevel} complete! You earned ${points} points.`);
+    setStatusType("success");
+  };
+
+  const handleNextLevel = () => {
+    if (currentLevel < Object.keys(LEVELS).length) {
+      setupLevel(currentLevel + 1);
+    } else {
+      setGameState("finished");
+      setMessage(`Congratulations! You finished all levels! Final Score: ${score}/${maxScore}`);
+    }
+  };
+
+  const handleResetGame = () => {
+    setScore(0);
+    setupLevel(1);
+  };
+
+  // --- GAME LOGIC LOOP (THE "ENGINE") ---
+  useEffect(() => {
+    if (gameLoopRef.current) clearInterval(gameLoopRef.current);
+
+    gameLoopRef.current = setInterval(() => {
+      if (gameState !== "playing") return;
+
+      const level = LEVELS[currentLevel as keyof typeof LEVELS];
+      const props = MIXTURE_PROPERTIES[currentMixture];
+      let newSettleTimer = settleTimer;
+
+      // 1. Update Physics (Settling Timer)
+      if (actionsPerformed.stirred && (props.settles || level.waitTime > 0)) {
+        newSettleTimer += 0.25;
+        setSettleTimer(newSettleTimer);
       }
-    }
 
-    if (isSeeded) {
-      for (let i = 0; i < 100; i++) {
-        const x = width / 2 + Math.cos(i + frameCount * 0.1) * (frameCount * 0.5);
-        const y = height / 2 + Math.sin(i + frameCount * 0.1) * (frameCount * 0.5);
-        ctx.beginPath();
-        ctx.fillStyle = '#E5E7EB';
-        ctx.arc(x, y, 3, 0, Math.PI * 2);
-        ctx.fill();
+      // 2. Update Guidance Messages
+      if (!actionsPerformed.stirred) {
+        setMessage("Click 'Stir Mixture' to begin observing.");
+      } else if (!actionsPerformed.laser) {
+        setMessage("Good. Now drag the Laser tool to the beaker.");
+      } else if (!actionsPerformed.filtered) {
+        setMessage("Great. Now drag the Filter tool to the beaker.");
+      } else if (level.waitTime > 0 && newSettleTimer < level.waitTime) {
+        setMessage(`All tools used. Waiting for observation... (${Math.floor(newSettleTimer)}s / ${level.waitTime}s)`);
+        setStatusType("neutral");
+      } else {
+        setMessage("All observations complete! Level Finished!");
+        setStatusType("success");
       }
-    }
+      
+      // 3. Check for Level Completion
+      const waitConditionMet = level.waitTime === 0 || newSettleTimer >= level.waitTime;
+      
+      if (actionsPerformed.stirred && actionsPerformed.laser && actionsPerformed.filtered && waitConditionMet) {
+        completeLevel(level.points);
+      }
 
-    ctx.fillStyle = "white";
-    ctx.font = "20px sans-serif";
-    ctx.textAlign = 'center';
-    let statusText = currentPhase.toUpperCase();
-    if (currentPhase === 'Supersaturated' && temperature === 25) {
-      statusText = 'SUPERSATURATED (Unstable!)';
-      ctx.fillStyle = '#DC2626';
-    }
-    ctx.fillText(statusText, width / 2, 30);
+    }, 250); // Game loop ticks every 250ms
 
-    animationFrameRef.current = requestAnimationFrame(() => draw(ctx, frameCount + 1));
-  }, [dissolved_n_mol, undissolvedMass, temperature, currentPhase, isSeeded]);
+    return () => {
+      if (gameLoopRef.current) clearInterval(gameLoopRef.current);
+    };
+  }, [gameState, actionsPerformed, currentLevel, settleTimer]);
 
+  // --- CANVAS ANIMATION & RENDERING ---
   useEffect(() => {
     const canvas = canvasRef.current;
-    if (canvas) {
-      const ctx = canvas.getContext('2d');
-      if (ctx) draw(ctx, 0);
-    }
-    return () => {
-      animationFrameRef.current && cancelAnimationFrame(animationFrameRef.current);
-    };
-  }, [draw]);
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
 
-  const handleMassChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    let newMass = parseFloat(e.target.value);
-    if (isNaN(newMass)) newMass = 0;
-    newMass = Math.max(0, Math.min(70, newMass));
-    setSoluteMass(newMass);
-  };
+    const props = MIXTURE_PROPERTIES[currentMixture];
 
-  const handleTemperatureChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    let newT = parseInt(e.target.value);
-    if (isNaN(newT)) newT = 25;
-    newT = Math.max(25, Math.min(80, newT));
-    setTemperature(newT);
-  };
+    // Bounding box for particle physics
+    const beakerLeft = BEAKER_X - BEAKER_WIDTH / 2 + 10;
+    const beakerRight = BEAKER_X + BEAKER_WIDTH / 2 - 10;
+    const beakerTop = BEAKER_Y + BEAKER_HEIGHT - LIQUID_LEVEL;
+    const beakerBottom = BEAKER_Y + BEAKER_HEIGHT - 10;
 
-  const handleVolumeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    let newV = parseInt(e.target.value);
-    if (isNaN(newV)) newV = 100;
-    newV = Math.max(50, Math.min(300, newV));
-    setSolventVolume(newV);
-  };
+    const animate = () => {
+      ctx.clearRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
 
-  const submitCheckpoint = () => {
-    let checkpointAwarded = false;
-
-    for (const key in CHECKPOINTS) {
-      if (completedCheckpoints[key]) continue; // Skip already completed
-
-      const cp = CHECKPOINTS[key];
-      const meetsCriteria = cp.requiredState(
-        dissolved_n_mol,
-        molarity,
-        molality,
-        temperature,
-        currentPhase,
-        isSeeded
+      // --- Draw Beaker & Liquid ---
+      drawBeaker(
+        ctx,
+        props.color,
+        beakerTop
       );
 
-      if (meetsCriteria) {
-        // ✅ Correct checkpoint, award point
-        setPoints(prev => prev + 1);
-        setCompletedCheckpoints(prev => ({ ...prev, [key]: true }));
-        setFeedbacks(prev => ({ ...prev, [key]: "Checkpoint completed successfully!" }));
-        showNotification(`✅ ${cp.name} completed! You earned 1 point.`, 'green', 4000);
+      // --- Update and Draw Particles ---
+      particles.forEach(p => {
+        // Physics update
+        if (isStirred) {
+          // Rapid, random motion
+          p.x += (Math.random() - 0.5) * 15;
+          p.y += (Math.random() - 0.5) * 15;
+          p.settled = false;
+        } else if (props.settles && settleTimer > 5) {
+          // Settling (Suspension)
+          if (p.y < p.baseY) {
+            p.y += props.speed; // Gravity
+          } else {
+            p.settled = true;
+            p.x += (Math.random() - 0.5) * 0.1; // Jitter at bottom
+          }
+        } else if (currentMixture === "Colloid") {
+          // Brownian Motion
+          p.vx = (Math.random() - 0.5) * props.speed;
+          p.vy = (Math.random() - 0.5) * props.speed;
+          p.x += p.vx;
+          p.y += p.vy;
+        } else {
+          // Diffusion (True Solution)
+          p.x += p.vx;
+          p.y += p.vy;
+        }
 
-        checkpointAwarded = true;
-        break; // Only submit one checkpoint at a time
-      } else {
-        // ❌ Incorrect — show hint
-        showNotification(`💡 Hint: ${cp.hint}`, 'yellow', 5000);
-        checkpointAwarded = false;
-        break; // Show hint for the first unmet checkpoint
-      }
-    }
-
-    if (!checkpointAwarded && Object.keys(completedCheckpoints).length === Object.keys(CHECKPOINTS).length) {
-      showNotification("All checkpoints completed!", 'blue', 4000);
-    }
-  };
-
-  const finalSubmit = async () => {
-    try {
-      if (!studentId) {
-        showNotification("❌ Student ID missing!", "red", 4000);
-        return;
-      }
-
-      // --- Send 3 PATCH requests to increment retries ---
-      for (let i = 0; i < 3; i++) {
-        await fetch(`${baseUrl}/activities/${activityID}/retries/${studentId}`, {
-          method: "PATCH",
-        });
-      }
-
-      // --- Check retries from backend ---
-      const retriesRes = await fetch(`${baseUrl}/activities/${activityID}/retries/${studentId}`);
-      const retries = await retriesRes.json();
-
-      if (retries !== 3) {
-        showNotification("💡 Full lab can only be submitted if retries = 3.", "yellow", 5000);
-        return;
-      }
-
-      // --- Send full score if retries = 3 ---
-      const fullScore = 100;
-      await fetch(`${baseUrl}/activities/${activityID}/score/${studentId}?score=${fullScore}`, {
-        method: "PATCH",
+        // Wall collisions
+        if (p.x < beakerLeft) { p.x = beakerLeft; p.vx *= -1; }
+        if (p.x > beakerRight) { p.x = beakerRight; p.vx *= -1; }
+        if (p.y < beakerTop) { p.y = beakerTop; p.vy *= -1; }
+        if (p.y > beakerBottom) { p.y = beakerBottom; p.vy *= -1; }
+        if (p.settled) { p.y = p.baseY; }
       });
+      
+      // Draw particles (now happens in its own function)
+      drawParticles(ctx, particles, props.particleColor, currentMixture);
 
-      showNotification("✅ Final submission successful! You earned 100 points.", "green", 5000);
-    } catch (err) {
-      console.error("Final submission failed:", err);
-      showNotification("❌ Submission failed. Try again later.", "red", 5000);
+
+      // --- Draw Laser Tool ---
+      drawLaser(
+        ctx,
+        laser,
+        props.scattersLight,
+        BEAKER_X - BEAKER_WIDTH / 2, // beakerLeft (wall)
+        BEAKER_X + BEAKER_WIDTH / 2, // beakerRight (wall)
+        beakerTop,
+        beakerBottom
+      );
+      
+      // --- Draw Filter Tool ---
+      drawFilter(
+        ctx,
+        filter,
+        props.leavesResidue,
+        props.particleColor,
+        props.color
+      );
+
+      animFrame.current = requestAnimationFrame(animate);
+    };
+
+    animate();
+
+    return () => {
+      if (animFrame.current) cancelAnimationFrame(animFrame.current);
+    };
+  }, [currentMixture, particles, isStirred, laser, filter, settleTimer, gameState]);
+
+
+  // --- DRAG AND DROP HANDLERS ---
+  const handleDragStart = (e: React.DragEvent<HTMLDivElement>, item: DraggedItem) => {
+    setDraggedItem(item);
+  };
+
+  const handleDragOver = (e: React.DragEvent<HTMLCanvasElement>) => {
+    e.preventDefault();
+  };
+
+  const handleDrop = (e: React.DragEvent<HTMLCanvasElement>) => {
+    e.preventDefault();
+    const canvas = canvasRef.current;
+    if (!canvas || !draggedItem || gameState !== "playing") return;
+
+    const rect = canvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+
+    if (draggedItem === "laser") {
+      setLaser({ x, y, active: true });
+      setActionsPerformed(prev => ({ ...prev, laser: true }));
+    } else if (draggedItem === "filter") {
+      setFilter({ x, y, active: true });
+      setActionsPerformed(prev => ({ ...prev, filtered: true }));
     }
+    setDraggedItem(null);
   };
 
-  /*************  ✨ Windsurf Command ⭐  *************/
-  /**
-   * Add a seed crystal to the solution. This will only work if the current phase is 'Supersaturated'.
-   * If the current phase is not 'Supersaturated', a notification will be shown.
-   */
-  /*******  c69b180c-729f-42ad-bfd4-7d9750a9b06f  *******/
-  const seedCrystal = () => {
-    if (currentPhase === 'Supersaturated') {
-      setIsSeeded(true);
-      showNotification('Seed Crystal Added! Observing rapid crystallization...', 'blue', 3000);
-    } else {
-      showNotification('You can only add a seed crystal to a Supersaturated solution!', 'red', 3000);
-    }
+  // --- BUTTON HANDLERS ---
+  const handleStirClick = () => {
+    if (gameState !== "playing") return;
+    setIsStirred(true);
+    setActionsPerformed(prev => ({ ...prev, stirred: true }));
+    // Reset settle timer on stir
+    setSettleTimer(0);
+    // Reset particle physics
+    setParticles(pList => pList.map(p => ({...p, settled: false})));
+    // Stir animation lasts 1.5 seconds
+    setTimeout(() => setIsStirred(false), 1500);
   };
 
-  const resetTrial = () => {
-    setSoluteMass(2.0);
-    setSolventVolume(100);
-    setTemperature(25);
-    setIsCooled(false);
-    setIsSeeded(false);
-    setWasHeated(false);
-    setPoints(0);
-    setCompletedCheckpoints({});
-    showNotification('Trial fully reset. All values cleared.', 'red', 5000);
+  const handleResetControls = () => {
+    // Resets tools for the *current* level
+    setLaser(prev => ({ ...prev, active: false }));
+    setFilter(prev => ({ ...prev, active: false }));
+    setIsStirred(false);
+    setSettleTimer(0);
+    setActionsPerformed({
+      stirred: false,
+      laser: false,
+      filtered: false,
+      waited: false,
+    });
+    setMessage("Tools reset. Click 'Stir Mixture' to start again.");
+    setStatusType("neutral");
   };
-
-  const DataBox = ({ label, value, color = 'text-white' }: { label: string; value: string; color?: string }) => (
-    <div className="p-2 bg-gray-700 rounded">
-      <span className="block text-xs text-gray-400">{label}</span>
-      <span className={`block font-mono font-bold ${color}`}>{value}</span>
-    </div>
-  );
-
-  const renderControls = () => (
-    <div className="flex justify-center gap-4 flex-wrap p-3 bg-gray-700 rounded-lg">
-      <div className="text-center p-2 bg-gray-600 rounded-lg w-40">
-        <label className="block text-sm mb-2 font-medium text-yellow-300">Solute Mass (g)</label>
-        <input
-          type="text"
-          value={soluteMass.toFixed(1)}
-          onChange={handleMassChange}
-          className="w-full text-center mb-1 bg-white text-gray-900 border-2 border-yellow-400 rounded text-base p-1 font-bold focus:outline-none focus:ring-2 focus:ring-yellow-300"
-        />
-        <input type="range" min="0" max="70" step="0.1" value={soluteMass} onChange={handleMassChange} className="w-full" />
-      </div>
-
-      <div className="text-center p-2 bg-gray-600 rounded-lg w-40">
-        <label className="block text-sm mb-2 font-medium text-yellow-300">Temperature (°C)</label>
-        <input
-          type="text"
-          value={temperature}
-          onChange={handleTemperatureChange}
-          className="w-full text-center mb-1 bg-white text-gray-900 border-2 border-yellow-400 rounded text-base p-1 font-bold focus:outline-none focus:ring-2 focus:ring-yellow-300"
-        />
-        <input type="range" min="25" max="80" value={temperature} onChange={handleTemperatureChange} className="w-full" />
-      </div>
-
-      <div className="text-center p-2 bg-gray-600 rounded-lg w-40">
-        <label className="block text-sm mb-2 font-medium text-yellow-300">Volume (mL)</label>
-        <input
-          type="text"
-          value={solventVolume}
-          onChange={handleVolumeChange}
-          className="w-full text-center mb-1 bg-white text-gray-900 border-2 border-yellow-400 rounded text-base p-1 font-bold focus:outline-none focus:ring-2 focus:ring-yellow-300"
-        />
-        <input type="range" min="50" max="300" step="50" value={solventVolume} onChange={handleVolumeChange} className="w-full" />
-      </div>
-    </div>
-  );
-
-  const renderDataPanel = () => (
-    <div className="p-4 bg-gray-900 rounded-lg border-b-2 border-blue-600">
-      <h3 className="text-lg font-bold mb-2 text-blue-300">Solution Data</h3>
-      <div className="grid grid-cols-2 gap-2 text-sm">
-        <DataBox label="Total Solute Added" value={`${soluteMass.toFixed(1)} g`} />
-        <DataBox label="Dissolved Solute Mass" value={`${dissolvedMass.toFixed(2)} g`} />
-        <DataBox label="Undissolved Solid" value={`${undissolvedMass.toFixed(2)} g`} color={undissolvedMass > 0 ? 'text-red-400' : 'text-green-400'} />
-        <DataBox label="Solubility Limit" value={`${solubilityLimit_g.toFixed(2)} g`} />
-        <DataBox label="Moles Solute (n)" value={`${dissolved_n_mol.toFixed(4)} mol`} />
-        <DataBox label="Molarity (M)" value={`${molarity.toFixed(3)} M`} />
-        <DataBox label="Molality (m)" value={`${molality.toFixed(3)} m`} />
-        <DataBox label="Solvent Mass" value={`${solventMass_kg.toFixed(3)} kg`} />
-      </div>
-    </div>
-  );
 
   return (
-    <div className="lab-container mx-auto p-4 bg-gray-800 text-white rounded-xl shadow-2xl">
-      <h1 className="text-3xl font-extrabold mb-4 text-center text-blue-400">Unit 2: Solutions & Concentration Lab</h1>
-      <div className="text-center text-gray-400 mb-2 text-sm">
-        Activity ID: <span className="font-mono text-blue-300">{activityID}</span>
-      </div>
-      <div className="text-center mb-4 px-4 py-2 bg-gray-700/50 rounded-lg">
-        <div className={`font-medium text-lg ${notification.color}`}>{notification.message}</div>
-      </div>
+    <div className="min-h-screen bg-gray-900 p-4 font-sans">
+      {/* --- MODAL STYLES --- */}
+      <style>{`
+          .modal-overlay {
+            position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0, 0, 0, 0.7); display: flex;
+            align-items: center; justify-content: center; z-index: 1000;
+          }
+          .modal-content {
+            background: white; padding: 2rem; border-radius: 12px;
+            border: 4px solid #8b5cf6; max-width: 500px;
+            width: 90%; text-align: center; color: #333;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+          }
+          .modal-content h2 { font-size: 2rem; font-weight: bold; color: #6d28d9; margin-bottom: 1rem; }
+          .modal-content h3 { font-size: 1.25rem; font-weight: bold; color: #333; margin-top: 1.5rem; margin-bottom: 0.5rem; border-bottom: 2px solid #ddd; padding-bottom: 0.5rem; }
+          .modal-content p { font-size: 1rem; line-height: 1.6; margin-bottom: 1.5rem; }
+          .modal-button {
+            background-color: #8b5cf6; color: white; font-weight: bold;
+            padding: 0.75rem 1.5rem; border-radius: 8px; border: none;
+            cursor: pointer; font-size: 1.1rem; transition: background-color 0.2s;
+          }
+          .modal-button:hover { background-color: #7c3aed; }
+        `}</style>
 
-      <div className="flex gap-6">
-        <div className="flex-grow max-w-[600px] mx-auto">
-          <canvas ref={canvasRef} width={CANVAS_WIDTH} height={CANVAS_HEIGHT} className="simulation-canvas w-full rounded-lg mb-4 border-2 border-gray-600" />
-          {renderControls()}
-
-          <div className="flex justify-center gap-4 mt-6">
-            <button className="px-6 py-3 bg-indigo-500 text-white font-bold rounded-full hover:bg-indigo-400" onClick={submitCheckpoint}>Submit Checkpoint</button>
-            <button className="px-6 py-3 bg-red-500 text-white font-bold rounded-full hover:bg-red-400" onClick={resetTrial}>Reset Trial</button>
-            <div className="flex justify-center mt-4">
-              <button
-                className="px-6 py-3 font-bold rounded-full transition bg-green-600 text-white hover:bg-green-500"
-                onClick={finalSubmit}
-              >
-                Final Submit Lab
-              </button>
-
-            </div>
-
+      {/* --- MODALS --- */}
+      {(gameState === 'reflection' || gameState === 'finished') && (
+        <div className="modal-overlay">
+          <div className="modal-content">
+            {gameState === 'reflection' ? (
+              <>
+                <h2>Level {currentLevel} Complete!</h2>
+                <p>You earned <strong>{LEVELS[currentLevel as keyof typeof LEVELS].points} points.</strong></p>
+                <h3>Reflection:</h3>
+                <p>{LEVELS[currentLevel as keyof typeof LEVELS].reflectionText}</p>
+                <button className="modal-button" onClick={handleNextLevel}>
+                  {currentLevel < Object.keys(LEVELS).length ? 'Next Level' : 'Finish Game'}
+                </button>
+              </>
+            ) : ( // gameState === 'finished'
+              <>
+                <h2>Congratulations!</h2>
+                <p>You have completed all simulations!</p>
+                <p>Your final score is: <strong>{score.toFixed(1)} / {maxScore.toFixed(1)}</strong></p>
+                <button className="modal-button" onClick={handleResetGame}>
+                  Restart Simulation
+                </button>
+              </>
+            )}
           </div>
+        </div>
+      )}
 
-          <div className="text-center mt-4">
-            <button className={`px-6 py-2 rounded-lg font-bold transition ${currentPhase === 'Supersaturated' ? 'bg-red-700 text-white hover:bg-red-600' : 'bg-gray-600 text-gray-400 cursor-not-allowed'}`} onClick={seedCrystal} disabled={currentPhase !== 'Supersaturated'}>
-              Add Seed Crystal
+      {/* --- MAIN UI --- */}
+      <div className="max-w-7xl mx-auto">
+        <div className="text-center mb-4 p-4 bg-gray-800 rounded-xl shadow-lg">
+          <h1 className="text-5xl font-bold text-purple-300 mb-2">🧪 Mixtures & Dispersions Lab</h1>
+          <p className="text-xl text-purple-200">Suspension, Colloidal Solution & True Solution</p>
+        </div>
+        <div className="flex justify-center mb-4 space-x-4">
+          <div className="bg-yellow-500 text-black px-6 py-3 rounded-full font-bold text-xl shadow-md">Score: {score.toFixed(1)}/{maxScore.toFixed(1)}</div>
+          <div className="bg-blue-600 text-white px-6 py-3 rounded-full font-bold text-xl shadow-md">Part: {currentLevel} ({LEVELS[currentLevel as keyof typeof LEVELS].name})</div>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
+          {/* --- TOOLS & CONTROLS --- */}
+          <div className="bg-gray-800 rounded-xl p-4 border-2 border-yellow-400 shadow-inner space-y-4">
+            <h2 className="text-2xl font-bold text-yellow-300 mb-4 border-b border-yellow-400 pb-2">🔧 Tools</h2>
+            {/* Draggable Laser */}
+            <div
+              draggable
+              onDragStart={e => handleDragStart(e, "laser")}
+              className="p-4 rounded-lg cursor-grab bg-gradient-to-br from-red-600 to-red-800 hover:from-red-500 hover:to-red-700 text-white text-center font-semibold shadow-lg transform hover:scale-105 transition-all"
+            >
+              🔦 Laser Pointer
+            </div>
+            {/* Draggable Filter */}
+            <div
+              draggable
+              onDragStart={e => handleDragStart(e, "filter")}
+              className="p-4 rounded-lg cursor-grab bg-gradient-to-br from-blue-600 to-blue-800 hover:from-blue-500 hover:to-blue-700 text-white text-center font-semibold shadow-lg transform hover:scale-105 transition-all"
+            >
+              ⚗️ Filter Funnel
+            </div>
+            
+            <h2 className="text-2xl font-bold text-yellow-300 mt-6 border-b border-yellow-400 pb-2">⚙️ Actions</h2>
+            {/* Stir Button */}
+            <button
+              onClick={handleStirClick}
+              disabled={isStirred}
+              className="w-full bg-gradient-to-br from-green-600 to-green-800 hover:from-green-500 hover:to-green-700 py-3 rounded-lg font-bold text-white text-center shadow-lg transform hover:scale-105 transition-all disabled:from-gray-500 disabled:to-gray-700 disabled:cursor-not-allowed"
+            >
+              {isStirred ? 'Stirring...' : 'Stir Mixture'}
+            </button>
+            {/* Reset Tools Button */}
+            <button
+              onClick={handleResetControls}
+              className="w-full bg-gradient-to-br from-gray-600 to-gray-800 hover:from-gray-500 hover:to-gray-700 py-3 rounded-lg font-bold text-white text-center shadow-lg transform hover:scale-105 transition-all"
+            >
+              Reset Tools
+            </button>
+            {/* Reset Game Button */}
+            <button
+              onClick={handleResetGame}
+              className="w-full bg-gradient-to-br from-purple-600 to-purple-800 hover:from-purple-500 hover:to-purple-700 py-3 rounded-lg font-bold text-white text-center shadow-lg transform hover:scale-105 transition-all"
+            >
+              Reset Game
             </button>
           </div>
 
-          <div className="mt-4 p-3 bg-blue-900 border-2 border-blue-500 rounded-lg">
-            <h3 className="font-bold text-blue-300 mb-1 text-sm">Next Step Clue:</h3>
-            <p className="text-blue-100 font-medium">{getNextClue()}</p>
+          {/* --- CANVAS --- */}
+          <div className="col-span-1 lg:col-span-4 bg-gray-700 rounded-xl shadow-2xl overflow-hidden">
+            <canvas
+              ref={canvasRef}
+              width={CANVAS_WIDTH}
+              height={CANVAS_HEIGHT}
+              className="w-full h-full"
+              onDragOver={handleDragOver}
+              onDrop={handleDrop}
+            />
           </div>
         </div>
 
-        <div className="w-96 space-y-4">
-          {renderDataPanel()}
-          <div className="p-4 bg-gray-700 rounded-xl shadow-lg border border-blue-500">
-            <h2 className="text-xl font-extrabold text-yellow-300 mb-4 text-center border-b pb-2 border-yellow-500/50">Experiment Checkpoints</h2>
-            <div className="space-y-4">
-              {Object.entries(CHECKPOINTS).map(([key, cp]) => (
-                <div key={key} className={`p-3 rounded-lg transition ${completedCheckpoints[key] ? 'bg-green-800/70 border-l-4 border-green-400' : 'bg-gray-800/70 border-l-4 border-red-400'}`}>
-                  <div className="flex justify-between items-center mb-1">
-                    <h3 className={`font-bold ${completedCheckpoints[key] ? 'text-green-300' : 'text-white'}`}>{cp.name}</h3>
-                    <span className={`text-xs font-mono px-2 py-0.5 rounded-full ${completedCheckpoints[key] ? 'bg-green-500 text-black' : 'bg-red-500 text-white'}`}>{completedCheckpoints[key] ? 'DONE' : 'PENDING'}</span>
-                  </div>
-                  <p className="text-sm text-gray-300">{cp.instruction}</p>
-                  {completedCheckpoints[key] && feedbacks[key] && (
-                    <p className="text-sm text-green-300 font-medium mt-1">Feedback: {feedbacks[key]}</p>
-                  )}
-                </div>
-              ))}
-            </div>
-            <div className="mt-4 pt-4 border-t border-gray-600 text-center">
-              <p className="font-bold text-lg text-green-400">Total Simulation Points: {points} / 6 (+1 Bonus)</p>
-            </div>
-          </div>
+        {/* --- MESSAGE & INFO PANEL --- */}
+        <div className={`mt-4 bg-gray-800 rounded-xl p-4 border-4 ${
+            statusType === 'success' ? 'border-green-500' :
+            statusType === 'warning' ? 'border-red-500' :
+            'border-purple-300'
+          } shadow-lg transition-colors duration-300`}>
+          <h3 className="text-xl font-bold text-purple-200 mb-2">Current Objective:</h3>
+          <p className="text-lg text-white mb-2">{LEVELS[currentLevel as keyof typeof LEVELS].goal}</p>
+          <h3 className={`text-xl font-bold mb-2 ${
+              statusType === 'success' ? 'text-green-400' :
+              statusType === 'warning' ? 'text-red-400' :
+              'text-yellow-300'
+            }`}>Status:</h3>
+          <p className={`text-lg ${
+              statusType === 'success' ? 'text-green-300' :
+              statusType === 'warning' ? 'text-red-300' :
+              'text-yellow-100'
+            }`}>{message}</p>
         </div>
       </div>
     </div>
   );
 };
 
-export default SolutionsLab;
+export default MixturesAdventure;

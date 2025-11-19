@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Phase Change Simulation</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Arial', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+        }
+        
+        .simulation-container {
+            text-align: center;
+            background: rgba(255, 255, 255, 0.1);
+            padding: 40px;
+            border-radius: 20px;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+        }
+        
+        .title {
+            font-size: 2.5rem;
+            margin-bottom: 20px;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+        }
+        
+        .subtitle {
+            font-size: 1.2rem;
+            margin-bottom: 30px;
+            opacity: 0.9;
+        }
+        
+        .simulation-area {
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 15px;
+            padding: 30px;
+            margin: 20px 0;
+            min-height: 300px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .phase-display {
+            font-size: 2rem;
+            margin: 20px 0;
+            padding: 15px 30px;
+            background: rgba(255, 255, 255, 0.3);
+            border-radius: 10px;
+            transition: all 0.3s ease;
+        }
+        
+        .controls {
+            display: flex;
+            gap: 15px;
+            margin: 20px 0;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+        
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        
+        .btn-heat {
+            background: linear-gradient(45deg, #ff6b6b, #ee5a52);
+            color: white;
+        }
+        
+        .btn-cool {
+            background: linear-gradient(45deg, #4ecdc4, #44a08d);
+            color: white;
+        }
+        
+        .btn-complete {
+            background: linear-gradient(45deg, #95e1d3, #fce38a);
+            color: #333;
+        }
+        
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+        }
+        
+        .temperature {
+            font-size: 1.5rem;
+            margin: 15px 0;
+            padding: 10px 20px;
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 8px;
+        }
+        
+        .particles {
+            display: flex;
+            gap: 5px;
+            margin: 20px 0;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+        
+        .particle {
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            transition: all 0.5s ease;
+        }
+        
+        .particle.solid {
+            background: #74b9ff;
+            animation: vibrate 0.5s ease-in-out infinite alternate;
+        }
+        
+        .particle.liquid {
+            background: #0984e3;
+            animation: flow 2s ease-in-out infinite;
+        }
+        
+        .particle.gas {
+            background: #ddd;
+            animation: float 3s ease-in-out infinite;
+        }
+        
+        @keyframes vibrate {
+            0% { transform: translate(0); }
+            100% { transform: translate(2px, 2px); }
+        }
+        
+        @keyframes flow {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-10px); }
+        }
+        
+        @keyframes float {
+            0%, 100% { transform: translate(0, 0); }
+            25% { transform: translate(10px, -15px); }
+            50% { transform: translate(-5px, -25px); }
+            75% { transform: translate(-10px, -10px); }
+        }
+        
+        .progress {
+            margin: 20px 0;
+            text-align: left;
+        }
+        
+        .progress-item {
+            margin: 8px 0;
+            padding: 8px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 5px;
+        }
+        
+        .progress-item.completed {
+            background: rgba(39, 174, 96, 0.3);
+        }
+        
+        .timer {
+            font-size: 1.3rem;
+            margin: 15px 0;
+            color: #fce38a;
+        }
+    </style>
+</head>
+<body>
+    <div class="simulation-container">
+        <h1 class="title">🧪 Phase Change Simulation</h1>
+        <p class="subtitle">Interactive Matter State Changes</p>
+        
+        <div class="simulation-area">
+            <div class="temperature" id="temperature">Temperature: 0°C</div>
+            <div class="phase-display" id="phase-display">SOLID</div>
+            
+            <div class="particles" id="particles">
+                <!-- Particles will be generated by JavaScript -->
+            </div>
+            
+            <div class="timer" id="timer">Experience Time: 0s</div>
+        </div>
+        
+        <div class="controls">
+            <button class="btn btn-heat" onclick="startHeating()">🔥 Heat</button>
+            <button class="btn btn-cool" onclick="startCooling()">❄️ Cool</button>
+            <button class="btn btn-complete" onclick="completeSimulation()">✅ Complete Lab</button>
+        </div>
+        
+        <div class="progress">
+            <div class="progress-item" id="melting">1. Melting (Solid → Liquid)</div>
+            <div class="progress-item" id="boiling">2. Boiling (Liquid → Gas)</div>
+            <div class="progress-item" id="condensation">3. Condensation (Gas → Liquid)</div>
+            <div class="progress-item" id="freezing">4. Freezing (Liquid → Solid)</div>
+        </div>
+    </div>
+
+    <script>
+        let temperature = 0;
+        let currentPhase = 'solid';
+        let experienceTimer = 0;
+        let timerInterval;
+        let completedPhases = new Set();
+        
+        // Initialize particles
+        function createParticles() {
+            const particlesContainer = document.getElementById('particles');
+            particlesContainer.innerHTML = '';
+            for (let i = 0; i < 12; i++) {
+                const particle = document.createElement('div');
+                particle.className = `particle ${currentPhase}`;
+                particlesContainer.appendChild(particle);
+            }
+        }
+        
+        function updateDisplay() {
+            document.getElementById('temperature').textContent = `Temperature: ${temperature}°C`;
+            document.getElementById('phase-display').textContent = currentPhase.toUpperCase();
+            document.getElementById('timer').textContent = `Experience Time: ${experienceTimer}s`;
+            
+            // Update particles
+            const particles = document.querySelectorAll('.particle');
+            particles.forEach(particle => {
+                particle.className = `particle ${currentPhase}`;
+            });
+            
+            // Update phase display color
+            const phaseDisplay = document.getElementById('phase-display');
+            switch(currentPhase) {
+                case 'solid':
+                    phaseDisplay.style.background = 'rgba(116, 185, 255, 0.5)';
+                    break;
+                case 'liquid':
+                    phaseDisplay.style.background = 'rgba(9, 132, 227, 0.5)';
+                    break;
+                case 'gas':
+                    phaseDisplay.style.background = 'rgba(221, 221, 221, 0.5)';
+                    break;
+            }
+        }
+        
+        function startTimer() {
+            if (timerInterval) clearInterval(timerInterval);
+            timerInterval = setInterval(() => {
+                experienceTimer++;
+                updateDisplay();
+            }, 1000);
+        }
+        
+        function checkPhaseChange() {
+            const oldPhase = currentPhase;
+            
+            if (temperature <= 0) {
+                currentPhase = 'solid';
+            } else if (temperature > 0 && temperature < 100) {
+                currentPhase = 'liquid';
+            } else if (temperature >= 100) {
+                currentPhase = 'gas';
+            }
+            
+            if (oldPhase !== currentPhase) {
+                // Mark transition as completed
+                if (oldPhase === 'solid' && currentPhase === 'liquid') {
+                    completedPhases.add('melting');
+                    document.getElementById('melting').classList.add('completed');
+                } else if (oldPhase === 'liquid' && currentPhase === 'gas') {
+                    completedPhases.add('boiling');
+                    document.getElementById('boiling').classList.add('completed');
+                } else if (oldPhase === 'gas' && currentPhase === 'liquid') {
+                    completedPhases.add('condensation');
+                    document.getElementById('condensation').classList.add('completed');
+                } else if (oldPhase === 'liquid' && currentPhase === 'solid') {
+                    completedPhases.add('freezing');
+                    document.getElementById('freezing').classList.add('completed');
+                }
+            }
+        }
+        
+        function startHeating() {
+            startTimer();
+            const heatingInterval = setInterval(() => {
+                temperature += 5;
+                checkPhaseChange();
+                updateDisplay();
+                
+                if (temperature >= 120) {
+                    clearInterval(heatingInterval);
+                }
+            }, 500);
+        }
+        
+        function startCooling() {
+            startTimer();
+            const coolingInterval = setInterval(() => {
+                temperature -= 5;
+                checkPhaseChange();
+                updateDisplay();
+                
+                if (temperature <= -20) {
+                    clearInterval(coolingInterval);
+                }
+            }, 500);
+        }
+        
+        function completeSimulation() {
+            if (timerInterval) clearInterval(timerInterval);
+            
+            // Send completion message to parent window
+            if (window.parent) {
+                window.parent.postMessage("LAB_DONE", "*");
+            }
+            
+            // Show completion message
+            alert(`Simulation Completed! ✅\n\nPhases observed: ${completedPhases.size}/4\nTotal time: ${experienceTimer} seconds\n\nGreat job exploring phase changes!`);
+        }
+        
+        // Initialize the simulation
+        createParticles();
+        updateDisplay();
+        
+        // Auto-start timer when page loads
+        setTimeout(startTimer, 1000);
+    </script>
+</body>
+</html>
