@@ -59,6 +59,7 @@ const PhaseChangeAdventure3D = () => {
     // Removing playerRef and keysPressed
 
 
+
     // Refs for latest state access in loops
     // Refs for latest state access in loops
     const simulationStateRef = useRef({
@@ -125,7 +126,7 @@ const PhaseChangeAdventure3D = () => {
         },
         3: {
             name: "C. Condensation (Gas → Liquid)",
-            goal: "Pick up the Cooling Plate and place it above the beaker to cool H₂O vapor.",
+            goal: "Pick up the Cooling Plate and place it near the beaker to cool H₂O vapor.",
             startTemp: 110,
             points: 2,
             plateau: 100,

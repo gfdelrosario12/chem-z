@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback } from "react";
 import { createRoot, Root } from 'react-dom/client';
-import PhaseChangeAdventure3D from "./components/subcomponents/PhaseChangeAdventure3D";
+import PhaseChangeAdventure3D from "./components/subcomponents/lab 1/PhaseChangeAdventure3D";
 
 // --- Helper function to copy styles from main window to popup ---
 const copyStyles = (sourceDoc: Document, targetDoc: Document) => {
