@@ -406,7 +406,7 @@ const PhaseChangeAdventure3D: React.FC = () => {
     draggedMeshRef.current = null;
     setDraggedItem(null);
     if (placeholderRef.current) placeholderRef.current.visible = false;
-    if (controlsRef.current) controlsRef.current.enabled = interactionMode === 'pan';
+    if (controlsRef.current) controlsRef.current.enabled = interactionModeRef.current === 'pan';
   };
 
   const dissolveCrystalIntoIons = (crystal: THREE.Object3D, soluteKey: string, mass_g: number) => {
@@ -1364,6 +1364,21 @@ const PhaseChangeAdventure3D: React.FC = () => {
         <p>Phase Change Adventure - Unit 2: Solutions & Concentration</p>
         <p>© 2023 Your Name / Your Institution</p>
       </div>
+
+      {partCompleted && currentPart === 'D' && (
+        <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl p-8 shadow-2xl border-4 border-green-500 text-center max-w-lg mx-auto">
+            <h2 className="text-3xl font-bold text-green-700 mb-4">🏆 All Parts Complete!</h2>
+            <p className="text-lg text-gray-800 mb-4">You mastered Solutions & Concentration!</p>
+            <button
+              className="modal-button mt-4 bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-6 rounded shadow-lg text-xl"
+              onClick={() => window.close()}
+            >
+              Close Simulation
+            </button>
+          </div>
+        </div>
+      )}
 
       <style jsx>{`
         @keyframes slide-in-right {

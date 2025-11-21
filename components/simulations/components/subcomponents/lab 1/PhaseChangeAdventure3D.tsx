@@ -220,7 +220,7 @@ const PhaseChangeAdventure3D = () => {
     /**
      * Handles mouse move event for both camera panning and asset dragging.
      * @param {React.MouseEvent} event - The mouse move event.
-/*******  ee043749-463c-4a03-b85d-46a765c54646  *******/
+/*******  ee043749-463c-4a03-b85d-46a765c54646 *******/
     const handleMouseMove = (event: React.MouseEvent) => {
         if (!mountRef.current || !cameraRef.current) return;
 
@@ -1124,10 +1124,12 @@ const PhaseChangeAdventure3D = () => {
     };
 
     const handleCloseSimulation = () => {
+        setTimeout(() => {
+            window.close();
+        }, 100);
         if (window.opener) {
-            window.opener.postMessage("LAB_DONE", "*");
+            window.opener.postMessage("LAB_CLOSED", "*");
         }
-        window.close();
     };
 
     const handleResetControls = () => {
