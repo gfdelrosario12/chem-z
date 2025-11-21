@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import * as THREE from "three";
 import { Scene, Group, Object3DEventMap, Material } from "three";
+import { OrbitControls } from "three/examples/jsm/controls/OrbitControls";
 
 const PhaseChangeAdventure3D = () => {
 
@@ -58,7 +59,16 @@ const PhaseChangeAdventure3D = () => {
     const gameLoopRef = useRef<NodeJS.Timeout | null>(null);
     // Removing playerRef and keysPressed
 
+    // Interaction mode state
+    const [interactionMode, setInteractionMode] = useState<'pick' | 'pan'>('pick');
+    const controlsRef = useRef<OrbitControls | null>(null);
 
+    // Custom camera control state
+    const isPanning = useRef(false);
+    const previousMousePosition = useRef({ x: 0, y: 0 });
+    const cameraRotation = useRef({ theta: 0, phi: Math.PI / 4 }); // spherical coordinates
+    const cameraDistance = useRef(17);
+    const cameraTarget = useRef(new THREE.Vector3(0, 2, 0));
 
     // Refs for latest state access in loops
     // Refs for latest state access in loops
@@ -97,6 +107,18 @@ const PhaseChangeAdventure3D = () => {
             gameState
         };
     }, [draggedItem, heatSourceActive, coolingPlateActive, phase, liquidLevel, temperature, iceSize, currentLevel, condensationCount, attempts, statusType, isExperienceActive, gameState]);
+
+    // Sync interaction mode to controls and cursor
+    useEffect(() => {
+        if (rendererRef.current) {
+            // Set cursor based on mode and drag state
+            if (interactionMode === 'pan') {
+                rendererRef.current.domElement.style.cursor = isPanning.current ? 'grabbing' : 'grab';
+            } else {
+                rendererRef.current.domElement.style.cursor = draggedItem ? 'grabbing' : 'pointer';
+            }
+        }
+    }, [interactionMode, draggedItem]);
 
     // Tool positions
     const burnerTablePos = { x: -4, z: 3 };
@@ -149,11 +171,22 @@ const PhaseChangeAdventure3D = () => {
     const MAX_ATTEMPTS = 3;
     const AMBIENT_TEMP = 25;
 
-    // Mouse Event Handlers for Drag and Drop
+    // Mouse Event Handlers for Drag and Drop + Camera Pan
     const handleMouseDown = (event: React.MouseEvent) => {
         if (gameState !== 'playing' || !mountRef.current || !cameraRef.current || !sceneRef.current) return;
 
         const rect = mountRef.current.getBoundingClientRect();
+        const mouseX = event.clientX - rect.left;
+        const mouseY = event.clientY - rect.top;
+
+        if (interactionMode === 'pan') {
+            // Pan mode: Start camera rotation
+            isPanning.current = true;
+            previousMousePosition.current = { x: mouseX, y: mouseY };
+            return;
+        }
+
+        // Pick mode: Check for asset picking
         mouse.current.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
         mouse.current.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
 
@@ -169,13 +202,13 @@ const PhaseChangeAdventure3D = () => {
                 if (parent === burnerRef.current) {
                     setDraggedItem('burner');
                     isDragging.current = true;
-                    if (placeholderBurnerRef.current) placeholderBurnerRef.current.visible = true;
+                    setIsExperienceActive(true);
                     return;
                 }
                 if (parent === coolingPlateRef.current) {
                     setDraggedItem('cooling');
                     isDragging.current = true;
-                    if (placeholderCoolingRef.current) placeholderCoolingRef.current.visible = true;
+                    setIsExperienceActive(true);
                     return;
                 }
                 parent = parent.parent;
@@ -183,32 +216,66 @@ const PhaseChangeAdventure3D = () => {
         }
     };
 
+    /*************  ✨ Windsurf Command ⭐  *************/
+    /**
+     * Handles mouse move event for both camera panning and asset dragging.
+     * @param {React.MouseEvent} event - The mouse move event.
+/*******  ee043749-463c-4a03-b85d-46a765c54646  *******/
     const handleMouseMove = (event: React.MouseEvent) => {
-        if (!isDragging.current || !draggedItem || !mountRef.current || !cameraRef.current) return;
+        if (!mountRef.current || !cameraRef.current) return;
 
         const rect = mountRef.current.getBoundingClientRect();
-        mouse.current.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
-        mouse.current.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+        const mouseX = event.clientX - rect.left;
+        const mouseY = event.clientY - rect.top;
 
-        raycaster.current.setFromCamera(mouse.current, cameraRef.current);
+        if (interactionMode === 'pan' && isPanning.current) {
+            // Pan mode: Rotate camera
+            const deltaX = mouseX - previousMousePosition.current.x;
+            const deltaY = mouseY - previousMousePosition.current.y;
 
-        const target = new THREE.Vector3();
-        raycaster.current.ray.intersectPlane(dragPlane.current, target);
+            // Update spherical coordinates
+            cameraRotation.current.theta -= deltaX * 0.005;
+            cameraRotation.current.phi -= deltaY * 0.005;
 
-        // Update position visually immediately for smoothness
-        if (draggedItem === 'burner' && burnerRef.current) {
-            burnerRef.current.position.set(target.x, 1.5, target.z); // Float at y=1.5
-        } else if (draggedItem === 'cooling' && coolingPlateRef.current) {
-            coolingPlateRef.current.position.set(target.x, 4.5, target.z); // Float at y=4.5 (above beaker)
+            // Clamp phi to prevent flipping
+            cameraRotation.current.phi = Math.max(0.1, Math.min(Math.PI - 0.1, cameraRotation.current.phi));
+
+            previousMousePosition.current = { x: mouseX, y: mouseY };
+            return;
         }
 
-        // Update floating card position
-        if (dragCardRef.current) {
-            dragCardRef.current.style.transform = `translate(${event.clientX + 20}px, ${event.clientY + 20}px)`;
+        if (interactionMode === 'pick' && isDragging.current && draggedItem) {
+            // Pick mode: Drag asset
+            mouse.current.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+            mouse.current.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+
+            raycaster.current.setFromCamera(mouse.current, cameraRef.current);
+
+            const target = new THREE.Vector3();
+            raycaster.current.ray.intersectPlane(dragPlane.current, target);
+
+            // Update base position (floating animation will add offset in render loop)
+            if (draggedItem === 'burner' && burnerRef.current) {
+                burnerRef.current.position.set(target.x, 2.5, target.z);
+            } else if (draggedItem === 'cooling' && coolingPlateRef.current) {
+                coolingPlateRef.current.position.set(target.x, 4.5, target.z);
+            }
+
+            // Update floating card position
+            if (dragCardRef.current) {
+                dragCardRef.current.style.transform = `translate(${event.clientX + 20}px, ${event.clientY + 20}px)`;
+            }
         }
     };
 
     const handleMouseUp = () => {
+        // Stop panning
+        if (isPanning.current) {
+            isPanning.current = false;
+        }
+
+        // Stop dragging
+        if (interactionMode !== 'pick') return;
         if (!isDragging.current) return;
         isDragging.current = false;
         if (placeholderBurnerRef.current) placeholderBurnerRef.current.visible = false;
@@ -224,15 +291,15 @@ const PhaseChangeAdventure3D = () => {
 
         const distToBeaker = Math.sqrt((itemPos.x - beakerPos.x) ** 2 + (itemPos.z - beakerPos.z) ** 2);
 
-        // For cooling plate, check if it's above the beaker (Y > 3.5)
-        // For burner, check if it's near the beaker on the ground (Y < 2)
+        // For cooling plate, check if it's near the beaker (will be placed above)
+        // For burner, check if it's near the beaker (will be placed below)
         let isValidDrop = false;
         if (draggedItem === 'cooling') {
-            // Cooling plate must be above beaker
-            isValidDrop = distToBeaker < 2.5 && itemPos.y > 3.5;
+            // Cooling plate must be near beaker horizontally
+            isValidDrop = distToBeaker < 2.5;
         } else if (draggedItem === 'burner') {
-            // Burner must be below/near beaker on ground level
-            isValidDrop = distToBeaker < 2 && itemPos.y < 2;
+            // Burner must be near beaker horizontally
+            isValidDrop = distToBeaker < 2;
         }
 
         if (isValidDrop) {
@@ -261,6 +328,15 @@ const PhaseChangeAdventure3D = () => {
         setDraggedItem(null);
     };
 
+    // Mouse wheel handler for zoom
+    const handleWheel = (event: React.WheelEvent) => {
+        if (interactionMode === 'pan') {
+            event.preventDefault();
+            const delta = event.deltaY * 0.01;
+            cameraDistance.current = Math.max(5, Math.min(30, cameraDistance.current + delta));
+        }
+    };
+
     // Initialize Three.js scene
     useEffect(() => {
         if (!mountRef.current) return;
@@ -286,6 +362,16 @@ const PhaseChangeAdventure3D = () => {
         renderer.shadowMap.type = THREE.PCFSoftShadowMap;
         mountRef.current.appendChild(renderer.domElement);
         rendererRef.current = renderer;
+
+        const controls = new OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.05;
+        controls.minDistance = 5;
+        controls.maxDistance = 30;
+        controls.target.set(0, 2, 0);
+        controls.update();
+        controls.enabled = interactionMode === 'pan';
+        controlsRef.current = controls;
 
         const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
         scene.add(ambientLight);
@@ -367,12 +453,11 @@ const PhaseChangeAdventure3D = () => {
         iceBlockRef.current = ice;
 
         // Placeholder Guide for Burner (below beaker)
-        const placeholderBurnerGeo = new THREE.BoxGeometry(2, 0.1, 2);
+        const placeholderBurnerGeo = new THREE.BoxGeometry(2, 0.2, 2);
         const placeholderBurnerMat = new THREE.MeshBasicMaterial({
             color: 0xff6600, // Orange for burner
-            wireframe: true,
             transparent: true,
-            opacity: 0.6
+            opacity: 0.5
         });
         const placeholderBurner = new THREE.Mesh(placeholderBurnerGeo, placeholderBurnerMat);
         placeholderBurner.position.set(beakerPos.x, 0.1, beakerPos.z);
@@ -381,12 +466,11 @@ const PhaseChangeAdventure3D = () => {
         placeholderBurnerRef.current = placeholderBurner;
 
         // Placeholder Guide for Cooling Plate (above beaker)
-        const placeholderCoolingGeo = new THREE.BoxGeometry(2, 0.1, 2);
+        const placeholderCoolingGeo = new THREE.BoxGeometry(2, 0.2, 2);
         const placeholderCoolingMat = new THREE.MeshBasicMaterial({
             color: 0x00ccff, // Blue for cooling
-            wireframe: true,
             transparent: true,
-            opacity: 0.6
+            opacity: 0.5
         });
         const placeholderCooling = new THREE.Mesh(placeholderCoolingGeo, placeholderCoolingMat);
         placeholderCooling.position.set(beakerPos.x, 4.5, beakerPos.z); // Above the beaker
@@ -603,10 +687,40 @@ const PhaseChangeAdventure3D = () => {
             // Animate placeholder pulse for both burner and cooling
             const time = Date.now() * 0.005;
             if (placeholderBurnerRef.current && placeholderBurnerRef.current.visible) {
-                (placeholderBurnerRef.current.material as THREE.MeshBasicMaterial).opacity = 0.3 + Math.sin(time) * 0.2;
+                (placeholderBurnerRef.current.material as THREE.MeshBasicMaterial).opacity = 0.4 + Math.sin(time) * 0.3;
+                placeholderBurnerRef.current.position.y = 0.1 + Math.sin(time * 2) * 0.05;
             }
             if (placeholderCoolingRef.current && placeholderCoolingRef.current.visible) {
-                (placeholderCoolingRef.current.material as THREE.MeshBasicMaterial).opacity = 0.3 + Math.sin(time) * 0.2;
+                (placeholderCoolingRef.current.material as THREE.MeshBasicMaterial).opacity = 0.4 + Math.sin(time) * 0.3;
+                placeholderCoolingRef.current.position.y = 4.5 + Math.sin(time * 2) * 0.05;
+            }
+
+            // Add floating animation to dragged items (absolute Y position based on sine wave)
+            if (draggedItem === 'burner' && burnerRef.current) {
+                const baseY = 2.5;
+                const floatOffset = Math.sin(Date.now() * 0.003) * 0.15;
+                burnerRef.current.position.y = baseY + floatOffset;
+            }
+            if (draggedItem === 'cooling' && coolingPlateRef.current) {
+                const baseY = 4.5;
+                const floatOffset = Math.sin(Date.now() * 0.003) * 0.15;
+                coolingPlateRef.current.position.y = baseY + floatOffset;
+            }
+
+            // Update camera position using spherical coordinates
+            const theta = cameraRotation.current.theta;
+            const phi = cameraRotation.current.phi;
+            const radius = cameraDistance.current;
+            const target = cameraTarget.current;
+
+            camera.position.x = target.x + radius * Math.sin(phi) * Math.cos(theta);
+            camera.position.y = target.y + radius * Math.cos(phi);
+            camera.position.z = target.z + radius * Math.sin(phi) * Math.sin(theta);
+            camera.lookAt(target);
+
+            // Update OrbitControls if needed (for damping)
+            if (controlsRef.current && interactionMode === 'pan') {
+                controlsRef.current.update();
             }
 
             renderer.render(scene, camera);
@@ -1128,13 +1242,13 @@ const PhaseChangeAdventure3D = () => {
             {/* Floating Drag Card */}
             <div
                 ref={dragCardRef}
-                className={`fixed pointer-events-none z-50 bg-white p-3 rounded-lg shadow-2xl border-2 border-purple-500 transform transition-opacity duration-200 ${draggedItem ? 'opacity-100' : 'opacity-0'}`}
+                className={`fixed pointer-events-none z-50 bg-gradient-to-br from-purple-600 to-blue-600 p-4 rounded-xl shadow-2xl border-3 border-white transform transition-all duration-200 ${draggedItem ? 'opacity-100 scale-110' : 'opacity-0 scale-90'}`}
                 style={{ left: 0, top: 0 }}
             >
-                <p className="font-bold text-purple-800 flex items-center gap-2">
+                <p className="font-bold text-white text-lg flex items-center gap-2">
                     {draggedItem === 'burner' ? '🔥 Bunsen Burner' : '🧊 Cooling Plate'}
                 </p>
-                <p className="text-xs text-gray-600">Release near beaker to use</p>
+                <p className="text-xs text-purple-100 mt-1">Drop near beaker to activate</p>
             </div>
 
             <div className="max-w-7xl mx-auto">
@@ -1208,14 +1322,30 @@ const PhaseChangeAdventure3D = () => {
                         </button>
                     </div>
 
-                    <div className="col-span-1 lg:col-span-4 bg-black rounded-xl shadow-2xl overflow-hidden" style={{ height: '600px' }}>
+                    <div className="col-span-1 lg:col-span-4 bg-black rounded-xl shadow-2xl overflow-hidden" style={{ height: '600px', position: 'relative' }}>
+                        {/* Pick/Pan Toggler Buttons */}
+                        <div className="absolute top-4 left-4 z-50 flex gap-2">
+                            <button
+                                onClick={() => setInteractionMode('pick')}
+                                className={`px-4 py-2 rounded font-bold text-white ${interactionMode === 'pick' ? 'bg-blue-600' : 'bg-gray-600'}`}
+                            >
+                                Pick
+                            </button>
+                            <button
+                                onClick={() => setInteractionMode('pan')}
+                                className={`px-4 py-2 rounded font-bold text-white ${interactionMode === 'pan' ? 'bg-blue-600' : 'bg-gray-600'}`}
+                            >
+                                Pan
+                            </button>
+                        </div>
                         <div
                             ref={mountRef}
-                            style={{ width: '100%', height: '100%', cursor: draggedItem ? 'grabbing' : 'grab' }}
+                            style={{ width: '100%', height: '100%' }}
                             onMouseDown={handleMouseDown}
                             onMouseMove={handleMouseMove}
                             onMouseUp={handleMouseUp}
                             onMouseLeave={handleMouseUp}
+                            onWheel={handleWheel}
                         />
                     </div>
                 </div>
