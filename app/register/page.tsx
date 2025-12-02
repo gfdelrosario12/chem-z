@@ -95,7 +95,7 @@ const RegisterPage: React.FC = () => {
       const result = await response.json();
 
       if (!response.ok) {
-        setVerifyMessage(result.error || "Failed to send code.");
+        setVerifyMessage(result.error || result.message || "Failed to send code.");
         return;
       }
 
@@ -128,11 +128,11 @@ const RegisterPage: React.FC = () => {
 
       const result = await response.json();
 
-      if (result.verified) {
+      if (response.ok) {
         setIsEmailVerified(true);
         setVerifyMessage("✅ Email successfully verified!");
       } else {
-        setVerifyMessage("❌ Incorrect verification code.");
+        setVerifyMessage(result.error || result.message || "❌ Incorrect verification code.");
       }
     } catch (err) {
       setVerifyMessage("Network error.");

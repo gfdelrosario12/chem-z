@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import * as THREE from "three";
 import { Scene, Group, Object3DEventMap, Material } from "three";
-import { OrbitControls } from "three/examples/jsm/controls/OrbitControls";
+import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 
 const PhaseChangeAdventure3D = () => {
 
@@ -133,7 +133,7 @@ const PhaseChangeAdventure3D = () => {
             points: 3,
             plateau: 0,
             material: "H₂O",
-            expectedTime: 25,
+            expectedTime: 20,
             reflectionText: "Why does temperature stay constant during melting? The energy (latent heat) is used to break intermolecular forces rather than increase kinetic energy."
         },
         2: {
@@ -143,7 +143,7 @@ const PhaseChangeAdventure3D = () => {
             points: 3,
             plateau: 100,
             material: "H₂O",
-            expectedTime: 160,
+            expectedTime: 35,
             reflectionText: "Evaporation is a slow surface phenomenon; boiling is rapid bulk vaporization when vapor pressure equals atmospheric pressure."
         },
         3: {
@@ -153,7 +153,7 @@ const PhaseChangeAdventure3D = () => {
             points: 2,
             plateau: 100,
             material: "H₂O",
-            expectedTime: 15,
+            expectedTime: 10,
             reflectionText: "Condensation is exothermic: gaseous particles slow and release latent heat as they form liquid."
         },
         4: {
@@ -163,7 +163,7 @@ const PhaseChangeAdventure3D = () => {
             points: 2,
             plateau: -78.5,
             material: "CO₂",
-            expectedTime: 80,
+            expectedTime: 25,
             reflectionText: "Dry Ice sublimates at 1 atm because liquid CO₂ cannot exist at normal atmospheric pressure."
         }
     };

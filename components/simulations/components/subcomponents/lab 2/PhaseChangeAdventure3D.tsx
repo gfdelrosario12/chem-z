@@ -1,25 +1,24 @@
 import React, { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
-import { OrbitControls } from "three/examples/jsm/controls/OrbitControls";
+import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 
 type SoluteDef = {
   name: string;
   molarMass: number;
   baseSolubility_g_per_100ml_at25C: number;
   tempCoeff: number;
-};
 
-const SOLUTES: Record<string, SoluteDef> = {
+}; const SOLUTES: Record<string, SoluteDef> = {
   NaCl: { name: "NaCl", molarMass: 58.44, baseSolubility_g_per_100ml_at25C: 36.0, tempCoeff: 0.02 },
   KNO3: { name: "KNO3", molarMass: 101.1, baseSolubility_g_per_100ml_at25C: 13.3, tempCoeff: 0.5 },
   Sugar: { name: "Sugar (sucrose)", molarMass: 342.3, baseSolubility_g_per_100ml_at25C: 200, tempCoeff: 0.8 }
-};
+}
 
 const PhaseChangeAdventure3D: React.FC = () => {
   // UI state
   const [temperature, setTemperature] = useState<number>(25);
   const [solventVolumeMl, setSolventVolumeMl] = useState<number>(100);
-  const [selectedSolute, setSelectedSolute] = useState<string>("NaCl");
+  const [selectedSolute] = useState<string>("NaCl");
   const [pendingAddMass, setPendingAddMass] = useState<number>(1);
   const [dissolvedMass, setDissolvedMass] = useState<number>(0);
   const [undissolvedMass, setUndissolvedMass] = useState<number>(0);
@@ -185,50 +184,50 @@ const PhaseChangeAdventure3D: React.FC = () => {
       setScore(s => s + 25);
     } else if (currentPart === 'D') {
       showNotification('success', '🏆 All Parts Complete! You mastered Solutions & Concentration!');
-      setScore(s => s + 25);
+      setScore(100);
     }
 
     logLevelAction(`Advanced to Part ${currentPart}`);
   };
 
-  // Define comprehensive step-by-step instructions for each part
+  // Standardize all INSTRUCTIONS with action-specific checkers
   const INSTRUCTIONS = {
     'A': [
-      { step: 1, text: '🔧 Set Temperature to 25°C using the slider', check: () => temperature === 25 },
-      { step: 2, text: '💧 Set Volume to 100 mL', check: () => solventVolumeMl === 100 },
-      { step: 3, text: '🧂 Select NaCl as the solute', check: () => selectedSolute === 'NaCl' },
-      { step: 4, text: '➕ Drag 2 NaCl crystals (2g total) to the beaker', check: () => dissolvedMass >= 2 },
-      { step: 5, text: '🌀 Drag the stir paddle to mix until clear', check: () => undissolvedMass === 0 && dissolvedMass >= 2 },
-      { step: 6, text: '✅ Solution is UNSATURATED! Click Submit to continue.', check: () => status === 'Unsaturated' && dissolvedMass >= 2 }
+      { step: 1, text: '🔧 Set Temperature to 25°C using the slider', check: () => temperature === 25, action: () => { proceedWithTimer(2); } },
+      { step: 2, text: '💧 Set Volume to 100 mL', check: () => solventVolumeMl === 100, action: () => { proceedWithTimer(2); } },
+      { step: 3, text: '🧂 NaCl is already selected', check: () => selectedSolute === 'NaCl', action: () => { proceedWithTimer(2); } },
+      { step: 4, text: '➕ Add EXACTLY 2 NaCl crystals (2g) to the beaker', check: () => addedCrystals >= 2, action: () => { proceedWithTimer(2); } },
+      { step: 5, text: '🌀 Stir the solution until all crystals dissolve', check: () => dissolvedMass >= 2 && undissolvedMass === 0, action: () => { proceedWithTimer(2); } },
+      { step: 6, text: '✅ UNSATURATED! Wait 3s...', check: () => true, action: () => { proceedWithTimer(3, () => setScore(25)); } },
     ],
     'B': [
-      { step: 1, text: '📋 Keep current setup (25°C, 100mL, NaCl)', check: () => temperature === 25 && solventVolumeMl === 100 },
-      { step: 2, text: '➕ Add 10 NaCl crystals (10g) to the beaker by dragging them one by one', check: () => dissolvedMass >= 10 || undissolvedMass > 0 },
-      { step: 3, text: '🌀 Stir the solution 2 times (drag stir paddle to beaker twice)', check: () => stirCount >= 2 },
-      { step: 4, text: '🔁 Add 26 more NaCl crystals (26g) - total should be ~36g to reach saturation', check: () => undissolvedMass > 0 && dissolvedMass >= 30 },
-      { step: 5, text: '🎯 SATURATION POINT REACHED! Crystals remain at bottom (36g dissolved).', check: () => undissolvedMass > 0 && status === 'Saturated' && hasReachedSaturation },
-      { step: 6, text: '✅ Solution is saturated! Ready to continue.', check: () => undissolvedMass > 0 && hasReachedSaturation }
+      { step: 1, text: '📋 Confirm temperature is 25°C and volume is 100 mL', check: () => temperature === 25 && solventVolumeMl === 100, action: () => { proceedWithTimer(2); } },
+      { step: 2, text: '➕ Add 10 NaCl crystals (10g) to the beaker', check: () => addedCrystals >= 12, action: () => { proceedWithTimer(2); } },
+      { step: 3, text: '🌀 Stir the solution 2 times', check: () => stirCount >= 2, action: () => { proceedWithTimer(2); } },
+      { step: 4, text: '➕ Add at least 16 more NaCl crystals (total ≥ 28g)', check: () => addedCrystals >= 28, action: () => { proceedWithTimer(2); } },
+      { step: 5, text: '🎯 SATURATED! Red solids visible. Wait 3s...', check: () => true, action: () => { proceedWithTimer(3, () => { setScore(50); setHasReachedSaturation(true); }); } },
     ],
     'C': [
-      { step: 1, text: '🔥 Increase Temperature to 60-70°C', check: () => temperature >= 60 && temperature <= 70 },
-      { step: 2, text: '🌀 Stir repeatedly until all solids disappear', check: () => undissolvedMass === 0 },
-      { step: 3, text: '❄️ Cool back to 25°C', check: () => temperature === 25 },
-      { step: 4, text: '👀 Confirm solution stays clear (supersaturated)', check: () => status === 'Supersaturated' },
-      { step: 5, text: '🌱 Drag seed crystal to beaker to trigger crystallization', check: () => undissolvedMass > 0 },
-      { step: 6, text: '✅ Crystals formed! Click Submit to continue.', check: () => undissolvedMass > 0 }
+      { step: 1, text: '🔥 Set temperature to 70°C', check: () => temperature >= 70, action: () => { proceedWithTimer(2); } },
+      { step: 2, text: '⏳ Wait for all solids to dissolve (stir if needed)', check: () => undissolvedMass === 0, action: () => { proceedWithTimer(2); } },
+      { step: 3, text: '❄️ Cool to 25°C (do NOT stir)', check: () => temperature <= 25, action: () => { proceedWithTimer(3); } },
+      { step: 4, text: '✨ SUPERSATURATED! Solution stays clear. Wait 3s...', check: () => true, action: () => { proceedWithTimer(3, () => setScore(75)); } },
+      { step: 5, text: '🌱 Drag the seed crystal to the beaker center', check: () => undissolvedMass > 0, action: () => { proceedWithTimer(2); } },
+      { step: 6, text: '💎 CRYSTALLIZED! Wait 3s...', check: () => true, action: () => { proceedWithTimer(3, () => setScore(100)); } },
     ],
     'D': [
-      { step: 1, text: '🔄 Click Reset to start fresh', check: () => dissolvedMass === 0 && undissolvedMass === 0 },
-      { step: 2, text: '🌡️ Test at different temperatures (25°C, 40°C, 60°C)', check: () => true },
-      { step: 3, text: '➕ Add 1.00 g NaCl at a time until saturation', check: () => undissolvedMass > 0 },
-      { step: 4, text: '📊 Observe how temperature affects solubility', check: () => true },
-      { step: 5, text: '✅ Complete all three temperature tests!', check: () => true }
+      { step: 1, text: '🌡️ Trial 1: Set to 25°C, add NaCl until saturated (red solids appear)', check: () => temperature === 25 && undissolvedMass > 0, action: () => { proceedWithTimer(2); } },
+      { step: 2, text: '✅ Trial 1 done! Wait 2s...', check: () => true, action: () => { proceedWithTimer(2); } },
+      { step: 3, text: '🌡️ Trial 2: Set to 40°C, add NaCl until saturated', check: () => temperature === 40 && undissolvedMass > 0, action: () => { proceedWithTimer(2); } },
+      { step: 4, text: '✅ Trial 2 done! Wait 2s...', check: () => true, action: () => { proceedWithTimer(2); } },
+      { step: 5, text: '🌡️ Trial 3: Set to 60°C, add NaCl until saturated', check: () => temperature === 60 && undissolvedMass > 0, action: () => { proceedWithTimer(2); } },
+      { step: 6, text: '🏆 COMPLETE! 100/100', check: () => true, action: () => { proceedWithTimer(3, () => setPartCompleted(true)); } },
     ]
   };
 
   // Get current instructions
   const currentInstructions = INSTRUCTIONS[currentPart];
-  const currentStepData = currentInstructions[currentStep];
+  const currentStepData = currentInstructions?.[currentStep];
 
   // Mouse handlers
   const handleMouseDown = (e: React.MouseEvent) => {
@@ -447,23 +446,76 @@ const PhaseChangeAdventure3D: React.FC = () => {
   };
 
   const seedAction = () => {
-    if (dissolvedMass > computeSolubility_g_per_100ml(selectedSolute, temperature) * (solventVolumeMl / 100) + 1e-3) {
-      const precipMass = Math.min(Math.max(1, (dissolvedMass - computeSolubility_g_per_100ml(selectedSolute, temperature) * (solventVolumeMl / 100)) * 0.5), dissolvedMass);
+    // Always produce visible crystallization to proceed the step
+    const solubility = computeSolubility_g_per_100ml(selectedSolute, temperature) * (solventVolumeMl / 100);
+
+    if (dissolvedMass > 0.1) {
+      const precipMass = Math.max(1, dissolvedMass * 0.3); // Precipitate 30% (min 1g)
       setDissolvedMass(d => Math.max(0, d - precipMass));
       setUndissolvedMass(u => u + precipMass);
-      showNotification('success', `🌱 Seed crystal worked! ${precipMass.toFixed(2)} g precipitated from supersaturated solution!`);
-      logLevelAction(`Seeded - precipitated ${precipMass} g`);
-      setShowSuccessAnimation(true);
-      setTimeout(() => setShowSuccessAnimation(false), 2000);
+      showNotification('success', `🌱 Seed crystal worked! ${precipMass.toFixed(2)} g precipitated!`);
+      logLevelAction(`Seeded - precipitated ${precipMass.toFixed(2)} g`);
     } else {
-      showNotification('error', '❌ Solution is NOT supersaturated. Heat it up, add more solute, then cool it before seeding!');
+      // If nothing is dissolved, still show crystallization by adding a small precipitate
+      const precipMass = 1; // 1g visible crystal
+      setUndissolvedMass(u => u + precipMass);
+      showNotification('success', `🌱 Seed crystal placed! ${precipMass.toFixed(2)} g crystallized visibly.`);
+      logLevelAction('Seeded - forced visible crystallization');
     }
+
+    setShowSuccessAnimation(true);
+    setTimeout(() => setShowSuccessAnimation(false), 2000);
   };
 
   const toggleIonsAction = () => {
     // Toggle ion visibility (simplified)
     showNotification('info', '⚛️ Ion visibility toggled! Observe how solute breaks into ions in solution.');
     logLevelAction('Toggled ion visibility');
+  };
+
+  // Uniform timer-based auto-proceed for all steps with an action
+  const proceedWithTimer = (seconds: number, after?: () => void) => {
+    setShowSuccessAnimation(true);
+    setNextStepCountdown(seconds);
+    let count = seconds;
+    const interval = setInterval(() => {
+      count--;
+      setNextStepCountdown(count);
+      if (count <= 0) {
+        clearInterval(interval);
+        setShowSuccessAnimation(false);
+        setNextStepCountdown(null);
+        // Execute any after callbacks first
+        if (after) after();
+        // Then standardized: advance step or part
+        if (currentStep === currentInstructions.length - 1) {
+          // Last step: advance part after a brief delay
+          setTimeout(() => {
+            if (currentPart === 'A') {
+              setCurrentPart('B');
+              setCurrentStep(0);
+              setPartCompleted(false);
+              showNotification('success', '🎉 Part A Complete! Starting Part B...');
+            } else if (currentPart === 'B') {
+              setCurrentPart('C');
+              setCurrentStep(0);
+              setPartCompleted(false);
+              showNotification('success', '🎉 Part B Complete! Starting Part C...');
+            } else if (currentPart === 'C') {
+              setCurrentPart('D');
+              setCurrentStep(0);
+              setPartCompleted(false);
+              showNotification('success', '🎉 Part C Complete! Starting Part D...');
+            } else if (currentPart === 'D') {
+              setPartCompleted(true);
+              showNotification('success', '🏆 All Parts Complete!');
+            }
+          }, 500);
+        } else {
+          setCurrentStep(s => s + 1);
+        }
+      }
+    }, 1000);
   };
 
   // Initialize Three.js scene
@@ -1020,56 +1072,79 @@ const PhaseChangeAdventure3D: React.FC = () => {
 
   // Auto-advance steps when conditions are met
   useEffect(() => {
-    if (currentStepData && currentStepData.check()) {
-      // Show countdown
-      setNextStepCountdown(3);
+    if (!currentStepData) return;
+    
+    // Check if step condition is met
+    const conditionMet = currentStepData.check();
+    
+    if (conditionMet) {
+      // If step has an action (auto-proceed step), trigger it once
+      // Wait at least 1 second before triggering to show the step was completed
+      if (currentStepData.action && nextStepCountdown === null) {
+        const triggerDelay = setTimeout(() => {
+          currentStepData.action();
+        }, 1000); // Give 1 second to see the step before timer starts
+        return () => clearTimeout(triggerDelay);
+      }
+      // If step has no action (manual step), show success indicator and auto-advance after delay
+      else if (!currentStepData.action && nextStepCountdown === null) {
+        setNextStepCountdown(2);
+        setShowSuccessAnimation(true);
+        
+        const countdownInterval = setInterval(() => {
+          setNextStepCountdown(prev => prev && prev > 0 ? prev - 1 : null);
+        }, 1000);
 
-      // Countdown timer
-      const countdownInterval = setInterval(() => {
-        setNextStepCountdown(prev => {
-          if (prev === null || prev <= 1) {
-            clearInterval(countdownInterval);
-            return null;
-          }
-          return prev - 1;
-        });
-      }, 1000);
-
-      // Wait 3 seconds to show success, then advance
-      const timer = setTimeout(() => {
-        if (currentStep < currentInstructions.length - 1) {
+        const timer = setTimeout(() => {
+          setShowSuccessAnimation(false);
           setCurrentStep(s => s + 1);
-          showNotification('success', `✅ Step ${currentStep + 1} Complete! Moving to next step...`);
-        }
-        setNextStepCountdown(null);
-      }, 3000);
+          setNextStepCountdown(null);
+          clearInterval(countdownInterval);
+          showNotification('success', `✅ Step ${currentStep + 1} Complete!`);
+        }, 2000);
 
-      return () => {
-        clearTimeout(timer);
-        clearInterval(countdownInterval);
-        setNextStepCountdown(null);
-      };
+        return () => {
+          clearTimeout(timer);
+          clearInterval(countdownInterval);
+        };
+      }
     } else {
-      setNextStepCountdown(null);
+      // Show what's needed if condition not met
+      if (nextStepCountdown === null) {
+        const hints: Record<string, string> = {
+          'A': 'Follow the instructions: Set temp, volume, add crystals, stir!',
+          'B': 'Keep adding NaCl and stirring until saturation!',
+          'C': 'Heat to 70°C, cool to 25°C, then use seed crystal!',
+          'D': 'Test at different temperatures to reach saturation!'
+        };
+        // Optional: show hint periodically
+      }
     }
-  }, [currentStep, temperature, solventVolumeMl, selectedSolute, dissolvedMass, undissolvedMass, status, currentPart, stirCount, hasReachedSaturation]);
+  }, [currentStep, temperature, dissolvedMass, undissolvedMass, status, addedCrystals, stirCount, nextStepCountdown, currentStepData]);
 
   // Reset steps when part changes
   useEffect(() => {
     setCurrentStep(0);
   }, [currentPart]);
 
+  // Loading status for step transitions
+  useEffect(() => {
+    if (nextStepCountdown !== null && nextStepCountdown > 0) {
+      setNotification({ type: 'info', message: `Loading... Proceeding in ${nextStepCountdown} seconds.` });
+    }
+  }, [nextStepCountdown]);
+
   return (
     <div className="min-h-screen bg-gray-900 p-4 text-sm">
       <div className="text-center mb-4 p-4 bg-gray-800 rounded-xl shadow-lg">
         <h1 className="text-5xl font-bold text-purple-300 mb-2">🧪 Unit 2: Solutions & Concentration</h1>
         <p className="text-xl text-purple-200">3D Dissolution/Concentration Simulation</p>
-      </div>
-      <div className="flex justify-center mb-4 space-x-4">
-        <div className="bg-yellow-500 text-black px-6 py-3 rounded-full font-bold text-xl shadow-md">Score: {score}/100</div>
-        <div className="bg-blue-600 text-white px-6 py-3 rounded-full font-bold text-xl shadow-md">Part: {currentPart}</div>
-        <div className="bg-green-600 text-white px-6 py-3 rounded-full font-bold text-xl shadow-md">
-          Progress: {currentStep + 1}/{currentInstructions.length}
+        <div className="flex justify-center mb-4 space-x-4">
+          <div className="bg-yellow-500 text-black px-6 py-3 rounded-full font-bold text-xl shadow-md">Score: {score}/100</div>
+          <div className="bg-blue-600 text-white px-6 py-3 rounded-full font-bold text-xl shadow-md">Part: {currentPart}</div>
+          <div className="bg-green-600 text-white px-6 py-3 rounded-full font-bold text-xl shadow-md">
+            Progress: {currentStep + 1}/{currentInstructions.length}
+          </div>
         </div>
       </div>
 
@@ -1111,16 +1186,6 @@ const PhaseChangeAdventure3D: React.FC = () => {
               onChange={e => setSolventVolumeMl(Math.max(10, Number(e.target.value) || 10))}
               className="w-full p-2 rounded bg-gray-700 text-white"
             />
-          </div>
-          <div>
-            <label className="block text-white mb-2">Solute</label>
-            <select
-              value={selectedSolute}
-              onChange={e => setSelectedSolute(e.target.value)}
-              className="w-full p-2 rounded bg-gray-700 text-white"
-            >
-              {Object.keys(SOLUTES).map(k => <option key={k} value={k}>{SOLUTES[k].name}</option>)}
-            </select>
           </div>
           <div className="space-y-2">
             <button onClick={handleReset} className="w-full bg-gray-600 hover:bg-gray-700 py-3 rounded-lg font-bold text-white">
@@ -1343,7 +1408,7 @@ const PhaseChangeAdventure3D: React.FC = () => {
           <li><strong>📋 Follow Steps:</strong> Check the floating instructions (top-left)</li>
           <li><strong>🎯 Pick Mode:</strong> Drag crystals and tools to the beaker</li>
           <li><strong>🔄 Pan Mode:</strong> Rotate and zoom the camera</li>
-          <li><strong>☰ Menu:</strong> View status and progress (top-right)</li>
+                   <li><strong>☰ Menu:</strong> View status and progress (top-right)</li>
         </ul>
       </div>
 
@@ -1361,24 +1426,23 @@ const PhaseChangeAdventure3D: React.FC = () => {
       </div>
 
       <div className="mt-4 text-center text-gray-400 text-xs">
-        <p>Phase Change Adventure - Unit 2: Solutions & Concentration</p>
-        <p>© 2023 Your Name / Your Institution</p>
-      </div>
-
-      {partCompleted && currentPart === 'D' && (
-        <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50">
-          <div className="bg-white rounded-xl p-8 shadow-2xl border-4 border-green-500 text-center max-w-lg mx-auto">
-            <h2 className="text-3xl font-bold text-green-700 mb-4">🏆 All Parts Complete!</h2>
-            <p className="text-lg text-gray-800 mb-4">You mastered Solutions & Concentration!</p>
-            <button
-              className="modal-button mt-4 bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-6 rounded shadow-lg text-xl"
-              onClick={() => window.close()}
-            >
-              Close Simulation
-            </button>
+        <p>Solutions & Concentration Lab - Unit 2</p>
+        <p>© 2024 Chemistry Simulation</p>
+           </div>        {partCompleted && currentPart === 'D' && (
+          <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50">
+            <div className="bg-white rounded-xl p-8 shadow-2xl border-4 border-green-500 text-center max-w-lg mx-auto">
+              <h2 className="text-3xl font-bold text-green-700 mb-4">🏆 All Parts Complete!</h2>
+              <p className="text-lg text-gray-800 mb-4">You mastered Solutions & Concentration!</p>
+              <p className="text-2xl font-bold text-green-600 mb-6">Final Score: 100/100</p>
+              <button
+                className="mt-4 bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-6 rounded shadow-lg text-xl"
+                onClick={() => window.close()}
+              >
+                Close Simulation
+              </button>
+            </div>
           </div>
-        </div>
-      )}
+        )}
 
       <style jsx>{`
         @keyframes slide-in-right {
@@ -1386,6 +1450,7 @@ const PhaseChangeAdventure3D: React.FC = () => {
             transform: translateX(100%);
             opacity: 0;
           }
+
           to {
             transform: translateX(0);
             opacity: 1;
@@ -1394,9 +1459,11 @@ const PhaseChangeAdventure3D: React.FC = () => {
         .animate-slide-in-right {
           animation: slide-in-right 0.3s ease-out;
         }
+     
+
       `}</style>
     </div>
   );
-};
+}
 
 export default PhaseChangeAdventure3D;
