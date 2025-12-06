@@ -197,23 +197,22 @@ const PhaseChangeAdventure3D: React.FC = () => {
       { step: 2, text: '💧 Set Volume to 100 mL', check: () => solventVolumeMl === 100, action: () => { proceedWithTimer(2); } },
       { step: 3, text: '🧂 NaCl is already selected', check: () => selectedSolute === 'NaCl', action: () => { proceedWithTimer(2); } },
       { step: 4, text: '➕ Add EXACTLY 2 NaCl crystals (2g) to the beaker', check: () => addedCrystals >= 2, action: () => { proceedWithTimer(2); } },
-      { step: 5, text: '🌀 Stir the solution until all crystals dissolve', check: () => dissolvedMass >= 2 && undissolvedMass === 0, action: () => { proceedWithTimer(2); } },
+      { step: 5, text: '🌀 Stir the solution 1 times', check: () => stirCount >= 1, action: () => { proceedWithTimer(2); } },
       { step: 6, text: '✅ UNSATURATED! Wait 3s...', check: () => true, action: () => { proceedWithTimer(3, () => setScore(25)); } },
     ],
     'B': [
       { step: 1, text: '📋 Confirm temperature is 25°C and volume is 100 mL', check: () => temperature === 25 && solventVolumeMl === 100, action: () => { proceedWithTimer(2); } },
       { step: 2, text: '➕ Add 10 NaCl crystals (10g) to the beaker', check: () => addedCrystals >= 12, action: () => { proceedWithTimer(2); } },
-      { step: 3, text: '🌀 Stir the solution 2 times', check: () => stirCount >= 2, action: () => { proceedWithTimer(2); } },
+      { step: 3, text: '🌀 Stir the solution 2 times', check: () => stirCount >= 3, action: () => { proceedWithTimer(2); } },
       { step: 4, text: '➕ Add at least 16 more NaCl crystals (total ≥ 28g)', check: () => addedCrystals >= 28, action: () => { proceedWithTimer(2); } },
       { step: 5, text: '🎯 SATURATED! Red solids visible. Wait 3s...', check: () => true, action: () => { proceedWithTimer(3, () => { setScore(50); setHasReachedSaturation(true); }); } },
     ],
     'C': [
       { step: 1, text: '🔥 Set temperature to 70°C', check: () => temperature >= 70, action: () => { proceedWithTimer(2); } },
-      { step: 2, text: '⏳ Wait for all solids to dissolve (stir if needed)', check: () => undissolvedMass === 0, action: () => { proceedWithTimer(2); } },
-      { step: 3, text: '❄️ Cool to 25°C (do NOT stir)', check: () => temperature <= 25, action: () => { proceedWithTimer(3); } },
-      { step: 4, text: '✨ SUPERSATURATED! Solution stays clear. Wait 3s...', check: () => true, action: () => { proceedWithTimer(3, () => setScore(75)); } },
-      { step: 5, text: '🌱 Drag the seed crystal to the beaker center', check: () => undissolvedMass > 0, action: () => { proceedWithTimer(2); } },
-      { step: 6, text: '💎 CRYSTALLIZED! Wait 3s...', check: () => true, action: () => { proceedWithTimer(3, () => setScore(100)); } },
+      { step: 2, text: '❄️ Cool to 25°C (do NOT stir)', check: () => temperature <= 25, action: () => { proceedWithTimer(3); } },
+      { step: 3, text: '✨ SUPERSATURATED! Solution stays clear. Wait 3s...', check: () => true, action: () => { proceedWithTimer(3, () => setScore(75)); } },
+      { step: 4, text: '🌱 Drag the seed crystal to the beaker center', check: () => undissolvedMass > 0, action: () => { proceedWithTimer(2); } },
+      { step: 5, text: '💎 CRYSTALLIZED! Wait 3s...', check: () => true, action: () => { proceedWithTimer(3, () => setScore(100)); } },
     ],
     'D': [
       { step: 1, text: '🌡️ Trial 1: Set to 25°C, add NaCl until saturated (red solids appear)', check: () => temperature === 25 && undissolvedMass > 0, action: () => { proceedWithTimer(2); } },
@@ -1277,7 +1276,7 @@ const PhaseChangeAdventure3D: React.FC = () => {
               )}
               {currentStep === currentInstructions.length - 1 && currentStepData.check() && (
                 <div className="mt-2 text-purple-600 font-bold text-sm animate-pulse">
-                  🎉 Part {currentPart} Complete! Auto-advancing in 2 seconds...
+                  🎉 Part {currentPart} Finished! Completing whole simulation in 2 seconds...
                 </div>
               )}
             </div>
