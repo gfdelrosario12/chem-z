@@ -2,6 +2,182 @@ import React, { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 
+// Equipment 3D Renderer Component
+const EquipmentRenderer: React.FC<{ equipmentType: string; onClose: () => void }> = ({ equipmentType, onClose }) => {
+  const mountRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (!mountRef.current) return;
+
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x1a1a2e);
+
+    const camera = new THREE.PerspectiveCamera(50, 1, 0.1, 100);
+    camera.position.set(0, 2, 3);
+    camera.lookAt(0, 0, 0);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(500, 500);
+    renderer.setPixelRatio(window.devicePixelRatio);
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    mountRef.current.appendChild(renderer.domElement);
+
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.autoRotate = true;
+    controls.autoRotateSpeed = 2;
+
+    // Enhanced Lighting Setup
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.8);
+    scene.add(ambientLight);
+    
+    // Key light (main light source)
+    const keyLight = new THREE.DirectionalLight(0xffffff, 1.2);
+    keyLight.position.set(5, 10, 5);
+    keyLight.castShadow = true;
+    keyLight.shadow.mapSize.width = 2048;
+    keyLight.shadow.mapSize.height = 2048;
+    scene.add(keyLight);
+    
+    // Fill light (softer, from opposite side)
+    const fillLight = new THREE.DirectionalLight(0x88ccff, 0.6);
+    fillLight.position.set(-5, 5, -5);
+    scene.add(fillLight);
+    
+    // Rim light (highlights edges)
+    const rimLight = new THREE.DirectionalLight(0xffaa66, 0.5);
+    rimLight.position.set(0, -5, -10);
+    scene.add(rimLight);
+    
+    // Point light for close-up detail
+    const pointLight = new THREE.PointLight(0xffffff, 0.8, 100);
+    pointLight.position.set(0, 3, 2);
+    scene.add(pointLight);
+
+    // Create equipment based on type
+    let equipment: THREE.Object3D;
+
+    switch (equipmentType) {
+      case 'Stir Solution':
+        // Stir paddle with handle
+        const stirGroup = new THREE.Group();
+        
+        // Paddle (flat horizontal piece)
+        const paddleGeom = new THREE.BoxGeometry(1.5, 0.2, 0.3);
+        const paddleMat = new THREE.MeshStandardMaterial({ color: 0x8b4513, metalness: 0.3, roughness: 0.7 });
+        const paddle = new THREE.Mesh(paddleGeom, paddleMat);
+        paddle.position.y = -0.5;
+        paddle.castShadow = true;
+        stirGroup.add(paddle);
+        
+        // Handle (vertical cylinder)
+        const handleGeom = new THREE.CylinderGeometry(0.08, 0.08, 1.5, 16);
+        const handleMat = new THREE.MeshStandardMaterial({ color: 0x654321, metalness: 0.2, roughness: 0.8 });
+        const handle = new THREE.Mesh(handleGeom, handleMat);
+        handle.position.y = 0.5;
+        handle.castShadow = true;
+        stirGroup.add(handle);
+        
+        equipment = stirGroup;
+        break;
+
+      case 'Seed Crystal':
+        // Red circular/spherical crystal
+        const crystalGeom = new THREE.SphereGeometry(0.5, 32, 32);
+        const crystalMat = new THREE.MeshPhysicalMaterial({ 
+          color: 0xff0000, 
+          metalness: 0.9, 
+          roughness: 0.1,
+          transparent: true,
+          opacity: 0.95,
+          transmission: 0.3,
+          clearcoat: 1.0
+        });
+        equipment = new THREE.Mesh(crystalGeom, crystalMat);
+        equipment.castShadow = true;
+        break;
+
+      case 'NaCl Crystal':
+        // Cubic salt crystal structure
+        const naclGroup = new THREE.Group();
+        const cubeSize = 0.3;
+        const naclMat = new THREE.MeshStandardMaterial({ color: 0xeeeeee, metalness: 0.1, roughness: 0.6 });
+        
+        for (let x = -1; x <= 1; x++) {
+          for (let y = -1; y <= 1; y++) {
+            for (let z = -1; z <= 1; z++) {
+              const cube = new THREE.Mesh(new THREE.BoxGeometry(cubeSize, cubeSize, cubeSize), naclMat);
+              cube.position.set(x * cubeSize, y * cubeSize, z * cubeSize);
+              cube.castShadow = true;
+              naclGroup.add(cube);
+            }
+          }
+        }
+        equipment = naclGroup;
+        break;
+
+      case 'Ion Toggle':
+        // Simple green toggle cylinder
+        const toggleGeom = new THREE.CylinderGeometry(0.3, 0.3, 1.5, 16);
+        const toggleMat = new THREE.MeshStandardMaterial({ color: 0x00ff00, metalness: 0.6, roughness: 0.4 });
+        equipment = new THREE.Mesh(toggleGeom, toggleMat);
+        equipment.castShadow = true;
+        break;
+
+      default:
+        equipment = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshStandardMaterial({ color: 0xff0000 }));
+    }
+
+    scene.add(equipment);
+
+    // Animation loop
+    const animate = () => {
+      requestAnimationFrame(animate);
+      controls.update();
+      renderer.render(scene, camera);
+    };
+    animate();
+
+    return () => {
+      if (mountRef.current && renderer.domElement) {
+        mountRef.current.removeChild(renderer.domElement);
+      }
+      renderer.dispose();
+      controls.dispose();
+    };
+  }, [equipmentType]);
+
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center p-6" style={{ backgroundColor: 'rgba(0, 0, 0, 0.85)' }} onClick={onClose}>
+      <div className="relative flex flex-col items-center" onClick={(e) => e.stopPropagation()}>
+        {/* Equipment Name at Top */}
+        <div className="mb-6">
+          <span className="inline-block bg-gradient-to-r from-purple-600 to-indigo-600 text-white px-8 py-3 rounded-xl font-bold shadow-2xl text-xl border-2 border-purple-400">
+            {equipmentType}
+          </span>
+        </div>
+        
+        {/* 3D Renderer */}
+        <div 
+          ref={mountRef} 
+          className="rounded-2xl shadow-2xl border-4 border-purple-500 overflow-hidden mb-6"
+          style={{ width: '500px', height: '500px' }}
+        />
+        
+        {/* Close Button at Bottom */}
+        <button 
+          onClick={onClose} 
+          className="bg-red-500 hover:bg-red-600 text-white rounded-xl px-8 py-4 flex items-center justify-center font-bold shadow-2xl transition-all hover:scale-110"
+          style={{ fontSize: '2.5rem', lineHeight: '1', minWidth: '120px' }}
+        >
+          ×
+        </button>
+      </div>
+    </div>
+  );
+};
+
 type SoluteDef = {
   name: string;
   molarMass: number;
@@ -40,6 +216,11 @@ const PhaseChangeAdventure3D: React.FC = () => {
   const [nextStepCountdown, setNextStepCountdown] = useState<number | null>(null); // Countdown to next step
   const [availableCrystals, setAvailableCrystals] = useState(12); // Track available NaCl crystals
   const [addedCrystals, setAddedCrystals] = useState(0); // Track crystals added to beaker
+  
+  // Hamburger menu state for equipment images
+  const [isEquipmentMenuOpen, setIsEquipmentMenuOpen] = useState(false);
+  const [selectedEquipmentType, setSelectedEquipmentType] = useState<string | null>(null);
+  const [showEquipmentGuide, setShowEquipmentGuide] = useState(true);
 
   // Drag/drop & scene refs
   const [draggedItem, setDraggedItem] = useState<string | null>(null);
@@ -531,13 +712,18 @@ const PhaseChangeAdventure3D: React.FC = () => {
     scene.fog = new THREE.Fog(0x87ceeb, 10, 50);
     sceneRef.current = scene;
 
-    const camera = new THREE.PerspectiveCamera(50, mountRef.current.clientWidth / mountRef.current.clientHeight, 0.1, 1000);
+    // Get actual container dimensions
+    const containerWidth = mountRef.current.clientWidth;
+    const containerHeight = mountRef.current.clientHeight;
+
+    const camera = new THREE.PerspectiveCamera(50, containerWidth / containerHeight, 0.1, 1000);
     camera.position.set(0, 8, 9);
     camera.lookAt(0, 1, 0);
     cameraRef.current = camera;
 
     const renderer = new THREE.WebGLRenderer({ antialias: true });
-    renderer.setSize(mountRef.current.clientWidth, mountRef.current.clientHeight);
+    renderer.setSize(containerWidth, containerHeight);
+    renderer.setPixelRatio(window.devicePixelRatio);
     renderer.shadowMap.enabled = true;
     mountRef.current.appendChild(renderer.domElement);
     rendererRef.current = renderer;
@@ -1199,178 +1385,99 @@ const PhaseChangeAdventure3D: React.FC = () => {
           </div>
         </div>
 
-        <div className="col-span-1 lg:col-span-4 bg-gray-700 rounded-xl shadow-2xl overflow-hidden relative">
-          {/* Pick/Pan Toggler Buttons */}
-          <div className="absolute top-4 left-4 z-50 flex gap-2">
-            <button
-              onClick={() => setInteractionMode('pick')}
-              className={`px-4 py-2 rounded font-bold text-white ${interactionMode === 'pick' ? 'bg-blue-600' : 'bg-gray-600'}`}
-            >
-              Pick
-            </button>
-            <button
-              onClick={() => setInteractionMode('pan')}
-              className={`px-4 py-2 rounded font-bold text-white ${interactionMode === 'pan' ? 'bg-blue-600' : 'bg-gray-600'}`}
-            >
-              Pan
-            </button>
-          </div>
+        <div className="col-span-1 lg:col-span-4 bg-gradient-to-br from-sky-400 to-blue-300 rounded-xl overflow-hidden relative" style={{ height: '600px' }}>
           <div
             ref={mountRef}
             className="w-full h-full"
-            style={{ height: '600px' }}
             onMouseDown={handleMouseDown}
             onMouseMove={handleMouseMove}
             onMouseUp={handleMouseUp}
             onMouseLeave={handleMouseUp}
           />
-          {floatingHint && (
-            <div className="absolute top-20 left-1/2 transform -translate-x-1/2 bg-gradient-to-r from-purple-600 to-blue-600 text-white px-6 py-4 rounded-full shadow-2xl animate-bounce z-50 max-w-xl text-center">
-              <p className="font-bold text-lg">{floatingHint}</p>
-            </div>
-          )}
-
-          {/* Floating Step Instructions */}
-          {showSteps && currentStepData && (
-            <div className="absolute top-4 left-4 bg-white bg-opacity-95 p-4 rounded-lg shadow-2xl border-2 border-purple-500 max-w-md z-40">
-              <div className="flex justify-between items-start mb-2">
-                <h3 className="font-bold text-purple-800 text-lg">
-                  Part {currentPart} - Step {currentStep + 1}/{currentInstructions.length}
-                </h3>
-                <button
-                  onClick={() => setShowSteps(false)}
-                  className="text-gray-500 hover:text-gray-700 font-bold"
-                >
-                  ✕
-                </button>
-              </div>
-              <div className="bg-purple-50 p-3 rounded-lg mb-2">
-                <p className="text-gray-800 text-sm font-semibold">{currentStepData.text}</p>
-              </div>
-              <div className="flex gap-2">
-                {currentInstructions.map((_, idx) => (
-                  <div
-                    key={idx}
-                    className={`h-2 flex-1 rounded ${idx < currentStep ? 'bg-green-500' :
-                      idx === currentStep ? 'bg-purple-500 animate-pulse' :
-                        'bg-gray-300'
-                      }`}
-                  />
-                ))}
-              </div>
-              {currentStepData.check() && nextStepCountdown !== null && (
-                <div className="mt-2 bg-green-100 border-2 border-green-500 rounded-lg p-3 flex items-center justify-between animate-pulse">
-                  <div className="flex items-center gap-2">
-                    <span className="text-2xl">✓</span>
-                    <span className="text-green-700 font-bold">Step Complete!</span>
-                  </div>
-                  <div className="bg-green-500 text-white font-bold px-4 py-2 rounded-full text-lg">
-                    {nextStepCountdown}s
-                  </div>
-                </div>
-              )}
-              {currentStepData.check() && nextStepCountdown === null && (
-                <div className="mt-2 text-green-600 font-bold text-sm flex items-center gap-2">
-                  ✓ Condition met!
-                </div>
-              )}
-              {currentStep === currentInstructions.length - 1 && currentStepData.check() && (
-                <div className="mt-2 text-purple-600 font-bold text-sm animate-pulse">
-                  🎉 Part {currentPart} Finished! Completing whole simulation in 2 seconds...
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Hamburger Menu Button */}
-          {!showSteps && (
+          
+          {/* Pick/Pan Toggler Buttons */}
+          <div className="absolute top-3 left-3 z-50 flex gap-2">
             <button
-              onClick={() => setShowSteps(true)}
-              className="absolute top-4 left-4 bg-purple-600 text-white p-3 rounded-full shadow-lg hover:bg-purple-700 z-40"
+              onClick={() => setInteractionMode('pick')}
+              className={`px-4 py-2 rounded-lg text-sm font-bold text-white shadow-lg ${interactionMode === 'pick' ? 'bg-blue-600' : 'bg-gray-700 bg-opacity-90'}`}
             >
-              📋
+              Pick
             </button>
-          )}
+            <button
+              onClick={() => setInteractionMode('pan')}
+              className={`px-4 py-2 rounded-lg text-sm font-bold text-white shadow-lg ${interactionMode === 'pan' ? 'bg-blue-600' : 'bg-gray-700 bg-opacity-90'}`}
+            >
+              Pan
+            </button>
+          </div>
 
-          {/* Status Menu (Hamburger) */}
+          {/* Hamburger Menu Button - Enlarged */}
           <button
-            onClick={() => setShowMenu(!showMenu)}
-            className="absolute top-4 right-4 bg-blue-600 text-white p-3 rounded-full shadow-lg hover:bg-blue-700 z-40"
+            onClick={() => {
+              setIsEquipmentMenuOpen(!isEquipmentMenuOpen);
+              setShowEquipmentGuide(false);
+            }}
+            className="absolute top-3 right-3 z-50 bg-purple-600 hover:bg-purple-700 text-white p-4 rounded-xl shadow-2xl transition-all duration-200 border-2 border-purple-400"
+            aria-label="Equipment Menu"
           >
-            ☰
+            <svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2.5}>
+              {isEquipmentMenuOpen ? (
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+              ) : (
+                <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
+              )}
+            </svg>
           </button>
 
-          {showMenu && (
-            <div className="absolute top-16 right-4 bg-white bg-opacity-95 p-4 rounded-lg shadow-2xl border-2 border-blue-500 max-w-xs z-40">
-              <h3 className="font-bold text-blue-800 text-lg mb-3">Status</h3>
-              <div className="space-y-2 text-sm">
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Temperature:</span>
-                  <span className="font-bold">{temperature}°C</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Volume:</span>
-                  <span className="font-bold">{solventVolumeMl} mL</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Dissolved:</span>
-                  <span className="font-bold">{dissolvedMass.toFixed(2)} g</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Undissolved:</span>
-                  <span className="font-bold">{undissolvedMass.toFixed(2)} g</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Status:</span>
-                  <span className={`font-bold ${status === 'Saturated' ? 'text-orange-600' :
-                    status === 'Supersaturated' ? 'text-red-600' :
-                      'text-green-600'
-                    }`}>{status}</span>
-                </div>
-                {currentPart === 'B' && (
-                  <div className="flex justify-between">
-                    <span className="text-gray-600">Stir Count:</span>
-                    <span className="font-bold text-blue-600">{stirCount} times</span>
-                  </div>
-                )}
-                <div className="flex justify-between items-center">
-                  <span className="text-gray-600">Available NaCl:</span>
-                  <span className={`font-bold ${availableCrystals < 5 ? 'text-red-600' : 'text-green-600'}`}>
-                    {availableCrystals} crystals
-                  </span>
-                </div>
+          {/* Guide Notification with Arrow - Aligned with hamburger */}
+          {showEquipmentGuide && !isEquipmentMenuOpen && (
+            <div className="absolute top-3 right-20 z-50 animate-bounce">
+              <div className="relative bg-gradient-to-r from-yellow-400 to-orange-500 text-white px-4 py-3 rounded-xl shadow-2xl font-bold text-sm whitespace-nowrap border-2 border-yellow-300 flex items-center" style={{ height: '60px' }}>
+                <div className="absolute top-1/2 -right-2 w-0 h-0 border-t-8 border-b-8 border-l-8 border-t-transparent border-b-transparent border-l-yellow-400 transform -translate-y-1/2"></div>
+                <span>📚 View Materials Here</span>
+                <button onClick={() => setShowEquipmentGuide(false)} className="ml-3 text-white hover:text-gray-200 font-bold text-lg">×</button>
               </div>
             </div>
           )}
 
-          {showSuccessAnimation && (
-            <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 pointer-events-none z-50">
-              <div className="text-9xl animate-ping">✨</div>
+          {/* Hamburger Menu Dropdown - Enlarged */}
+          {isEquipmentMenuOpen && (
+            <div className="absolute top-20 right-3 z-50 bg-gray-800 rounded-xl shadow-2xl border-3 border-purple-400 overflow-hidden" style={{ minWidth: '280px' }}>
+              <div className="p-3">
+                <h3 className="text-white font-bold text-base px-3 py-2 border-b-2 border-gray-700">Lab Equipment</h3>
+                <button onClick={() => { setSelectedEquipmentType('Stir Solution'); setIsEquipmentMenuOpen(false); }} className="w-full text-left px-4 py-3 text-white hover:bg-purple-600 hover:underline transition-colors duration-150 text-sm cursor-pointer flex items-center gap-3 rounded-lg">
+                  <span className="text-xl">🌀</span>
+                  <span className="underline decoration-dotted flex-1">Stir Solution</span>
+                  <span className="text-sm opacity-70">👁️ View</span>
+                </button>
+                <button onClick={() => { setSelectedEquipmentType('Seed Crystal'); setIsEquipmentMenuOpen(false); }} className="w-full text-left px-4 py-3 text-white hover:bg-purple-600 hover:underline transition-colors duration-150 text-sm cursor-pointer flex items-center gap-3 rounded-lg">
+                  <span className="text-xl">🌱</span>
+                  <span className="underline decoration-dotted flex-1">Seed Crystal</span>
+                  <span className="text-sm opacity-70">👁️ View</span>
+                </button>
+                <button onClick={() => { setSelectedEquipmentType('NaCl Crystal'); setIsEquipmentMenuOpen(false); }} className="w-full text-left px-4 py-3 text-white hover:bg-purple-600 hover:underline transition-colors duration-150 text-sm cursor-pointer flex items-center gap-3 rounded-lg">
+                  <span className="text-xl">🧂</span>
+                  <span className="underline decoration-dotted flex-1">NaCl Crystal</span>
+                  <span className="text-sm opacity-70">👁️ View</span>
+                </button>
+                <button onClick={() => { setSelectedEquipmentType('Ion Toggle'); setIsEquipmentMenuOpen(false); }} className="w-full text-left px-4 py-3 text-white hover:bg-purple-600 hover:underline transition-colors duration-150 text-sm cursor-pointer flex items-center gap-3 rounded-lg">
+                  <span className="text-xl">⚛️</span>
+                  <span className="underline decoration-dotted flex-1">Ion Toggle</span>
+                  <span className="text-sm opacity-70">👁️ View</span>
+                </button>
+              </div>
             </div>
           )}
-
-          {hoveredObject && (
-            <div className="absolute top-4 left-4 bg-black bg-opacity-75 text-white p-2 rounded">
-              {hoveredObject === 'soluteCrystal' ? 'Crystal - Drag to beaker' :
-                hoveredObject === 'stir' ? 'Stir Paddle - Drag to beaker' :
-                  hoveredObject === 'seed' ? 'Seed Crystal - Drag to beaker' :
-                    'Ion Toggle - Drag to beaker'}
-            </div>
-          )}
-
-          {/* Floating Drag Card */}
-          <div
-            ref={dragCardRef}
-            className={`fixed pointer-events-none z-50 bg-white p-3 rounded-lg shadow-2xl border-2 border-purple-500 transform transition-opacity duration-200 ${draggedItem ? 'opacity-100' : 'opacity-0'}`}
-            style={{ left: 0, top: 0 }}
-          >
-            <p className="font-bold text-purple-800 flex items-center gap-2">
-              {draggedItem === 'NaCl' ? '🧂 NaCl Crystal' : draggedItem === 'KNO3' ? '🧂 KNO3 Crystal' : draggedItem === 'Sugar' ? '🧂 Sugar Crystal' : draggedItem === 'stir' ? '🌀 Stir Paddle' : draggedItem === 'seed' ? '🌱 Seed Crystal' : draggedItem === 'ionToggle' ? '⚛️ Ion Toggle' : ''}
-            </p>
-            <p className="text-xs text-gray-600">Release near beaker to use</p>
-          </div>
         </div>
       </div>
+
+      {/* Equipment 3D Renderer Modal */}
+      {selectedEquipmentType && (
+        <EquipmentRenderer 
+          equipmentType={selectedEquipmentType} 
+          onClose={() => setSelectedEquipmentType(null)} 
+        />
+      )}
 
       <div className="mt-6 bg-gray-800 rounded-xl p-6 border-4 border-purple-300 shadow-lg">
         <h3 className="text-xl font-bold text-purple-200 mb-4">Objective</h3>
@@ -1399,29 +1506,6 @@ const PhaseChangeAdventure3D: React.FC = () => {
           </div>
         </div>
         <p className="text-white mt-4">Status: <strong>{status}</strong></p>
-      </div>
-
-      <div className="bg-gray-700 p-3 rounded-lg">
-        <p className="text-white font-semibold mb-2">How to Play:</p>
-        <ul className="text-sm text-gray-300 space-y-2 list-disc list-inside">
-          <li><strong>📋 Follow Steps:</strong> Check the floating instructions (top-left)</li>
-          <li><strong>🎯 Pick Mode:</strong> Drag crystals and tools to the beaker</li>
-          <li><strong>🔄 Pan Mode:</strong> Rotate and zoom the camera</li>
-                   <li><strong>☰ Menu:</strong> View status and progress (top-right)</li>
-        </ul>
-      </div>
-
-      <div className="bg-gray-700 p-3 rounded-lg">
-        <p className="text-white font-semibold mb-2">Status:</p>
-        <p className="text-sm text-gray-300">
-          {draggedItem ? (
-            <span className="font-bold text-yellow-300 text-lg animate-pulse">
-              Dragging {draggedItem === 'stir' ? 'Stir Paddle' : draggedItem === 'seed' ? 'Seed Crystal' : draggedItem === 'ionToggle' ? 'Ion Toggle' : draggedItem} crystal
-            </span>
-          ) : (
-            'Ready to drag crystals or tools to the beaker'
-          )}
-        </p>
       </div>
 
       <div className="mt-4 text-center text-gray-400 text-xs">
