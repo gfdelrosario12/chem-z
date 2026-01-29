@@ -63,6 +63,11 @@ const PhaseChangeAdventure3D = () => {
     const [interactionMode, setInteractionMode] = useState<'pick' | 'pan'>('pick');
     const controlsRef = useRef<OrbitControls | null>(null);
 
+    // Hamburger menu state
+    const [isMenuOpen, setIsMenuOpen] = useState(false);
+    const [selectedImage, setSelectedImage] = useState<{ name: string; url: string } | null>(null);
+    const [showGuideNotification, setShowGuideNotification] = useState(true);
+
     // Custom camera control state
     const isPanning = useRef(false);
     const previousMousePosition = useRef({ x: 0, y: 0 });
@@ -1253,6 +1258,37 @@ const PhaseChangeAdventure3D = () => {
                 <p className="text-xs text-purple-100 mt-1">Drop near beaker to activate</p>
             </div>
 
+            {/* Image Modal with Transparent Background */}
+            {selectedImage && (
+                <div
+                    className="fixed inset-0 z-[60] flex items-center justify-center p-4"
+                    style={{ backgroundColor: 'rgba(0, 0, 0, 0.75)' }}
+                    onClick={() => setSelectedImage(null)}
+                >
+                    <div
+                        className="relative flex flex-col items-center"
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        <button
+                            onClick={() => setSelectedImage(null)}
+                            className="mb-2 bg-red-500 hover:bg-red-600 text-white rounded-full w-10 h-10 flex items-center justify-center font-bold text-xl shadow-lg transition-colors"
+                        >
+                            ×
+                        </button>
+                        <img
+                            src={selectedImage.url}
+                            alt={selectedImage.name}
+                            className="max-w-full max-h-[70vh] object-contain rounded-lg shadow-2xl"
+                        />
+                        <div className="mt-3">
+                            <span className="inline-block bg-purple-600 text-white px-6 py-2 rounded-lg font-bold shadow-lg text-lg">
+                                {selectedImage.name}
+                            </span>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             <div className="max-w-7xl mx-auto">
                 <div className="text-center mb-4 p-4 bg-gray-800 rounded-xl shadow-lg">
                     <h1 className="text-5xl font-bold text-purple-300 mb-2">🧪 Matter in Our Surroundings</h1>
@@ -1340,6 +1376,106 @@ const PhaseChangeAdventure3D = () => {
                                 Pan
                             </button>
                         </div>
+
+                        {/* Hamburger Menu Button on 3D View */}
+                        <button
+                            onClick={() => {
+                                setIsMenuOpen(!isMenuOpen);
+                                setShowGuideNotification(false);
+                            }}
+                            className="absolute top-4 right-4 z-50 bg-purple-600 hover:bg-purple-700 text-white p-3 rounded-lg shadow-lg transition-all duration-200"
+                            aria-label="Equipment Menu"
+                        >
+                            <svg
+                                className="w-6 h-6"
+                                fill="none"
+                                stroke="currentColor"
+                                viewBox="0 0 24 24"
+                            >
+                                {isMenuOpen ? (
+                                    <path
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                        strokeWidth={2}
+                                        d="M6 18L18 6M6 6l12 12"
+                                    />
+                                ) : (
+                                    <path
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                        strokeWidth={2}
+                                        d="M4 6h16M4 12h16M4 18h16"
+                                    />
+                                )}
+                            </svg>
+                        </button>
+
+                        {/* Guide Notification with Arrow */}
+                        {showGuideNotification && !isMenuOpen && (
+                            <div className="absolute top-4 right-20 z-40 animate-bounce">
+                                <div className="relative bg-gradient-to-r from-yellow-400 to-orange-500 text-white px-4 py-2 rounded-lg shadow-xl font-bold text-sm whitespace-nowrap">
+                                    <div className="absolute top-3 -right-2 w-0 h-0 border-t-8 border-b-8 border-l-8 border-t-transparent border-b-transparent border-l-yellow-400"></div>
+                                    📚 Lab Materials Guide
+                                    <button
+                                        onClick={() => setShowGuideNotification(false)}
+                                        className="ml-2 text-white hover:text-gray-200 font-bold"
+                                    >
+                                        ×
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Hamburger Menu Dropdown on 3D View */}
+                        {isMenuOpen && (
+                            <div className="absolute top-16 right-4 z-50 bg-gray-800 rounded-lg shadow-2xl border-2 border-purple-400 overflow-hidden">
+                                <div className="p-2">
+                                    <h3 className="text-white font-bold text-sm px-3 py-2 border-b border-gray-700">
+                                        Lab Equipment
+                                    </h3>
+                                    <button
+                                        onClick={() => {
+                                            setSelectedImage({
+                                                name: 'Beaker',
+                                                url: 'https://chemz.s3.ap-southeast-1.amazonaws.com/resources/Beaker.png'
+                                            });
+                                            setIsMenuOpen(false);
+                                        }}
+                                        className="w-full text-left px-3 py-2 text-white hover:bg-purple-600 hover:underline transition-colors duration-150 text-sm cursor-pointer flex items-center gap-2"
+                                    >
+                                        🧪 <span className="underline decoration-dotted">Beaker</span>
+                                        <span className="ml-auto text-xs opacity-70">👁️ View</span>
+                                    </button>
+                                    <button
+                                        onClick={() => {
+                                            setSelectedImage({
+                                                name: 'Bunsen Burner',
+                                                url: 'https://chemz.s3.ap-southeast-1.amazonaws.com/resources/Bunsen+Burner.png'
+                                            });
+                                            setIsMenuOpen(false);
+                                        }}
+                                        className="w-full text-left px-3 py-2 text-white hover:bg-purple-600 hover:underline transition-colors duration-150 text-sm cursor-pointer flex items-center gap-2"
+                                    >
+                                        🔥 <span className="underline decoration-dotted">Bunsen Burner</span>
+                                        <span className="ml-auto text-xs opacity-70">👁️ View</span>
+                                    </button>
+                                    <button
+                                        onClick={() => {
+                                            setSelectedImage({
+                                                name: 'Cooling Pad',
+                                                url: 'https://chemz.s3.ap-southeast-1.amazonaws.com/resources/Cooling+Pad.png'
+                                            });
+                                            setIsMenuOpen(false);
+                                        }}
+                                        className="w-full text-left px-3 py-2 text-white hover:bg-purple-600 hover:underline transition-colors duration-150 text-sm cursor-pointer flex items-center gap-2"
+                                    >
+                                        ❄️ <span className="underline decoration-dotted">Cooling Pad</span>
+                                        <span className="ml-auto text-xs opacity-70">👁️ View</span>
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+
                         <div
                             ref={mountRef}
                             style={{ width: '100%', height: '100%' }}
