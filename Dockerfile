@@ -1,38 +1,41 @@
-# ---------- Build Stage ----------
-FROM node:20-alpine AS build
+# Stage 1: Build the Next.js app
+FROM node:20-alpine AS builder
 
 # Set working directory
 WORKDIR /app
 
-# Copy package files first to leverage caching
+# Copy package files
 COPY package*.json ./
 
-# Install dependencies quietly
-RUN npm ci --silent
+# Install dependencies (including devDependencies for build)
+RUN npm install
 
-# Copy the rest of the project
+# Copy all source code
 COPY . .
 
+# Hardcode API base URL for production
+ENV NEXT_PUBLIC_API_BASE_URL=https://chemz.duckdns.org/api
+
 # Build the Next.js app
-# Ignore ESLint by using `NEXT_PUBLIC_DISABLE_ESLINT=true`
-ENV NEXT_PUBLIC_DISABLE_ESLINT=true
 RUN npm run build
 
-# ---------- Runtime Stage ----------
-FROM node:20-alpine AS runtime
+# Stage 2: Production image
+FROM node:20-alpine AS runner
 
+# Set working directory
 WORKDIR /app
 
-# Copy built app from build stage
-COPY --from=build /app/.next ./.next
-COPY --from=build /app/public ./public
-COPY package*.json ./
+# Copy only necessary files from builder
+COPY --from=builder /app/package*.json ./
+COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/.next ./.next
+COPY --from=builder /app/public ./public
 
-# Install only production dependencies
-RUN npm ci --production --silent
-
-# Expose the port Next.js uses
+# Expose the port Next.js will run on
 EXPOSE 3000
 
-# Run the app
-CMD ["npm", "start"]
+# Use production environment
+ENV NODE_ENV=production
+
+# Start the Next.js app
+CMD ["npx", "next", "start", "-p", "3000", "-H", "0.0.0.0"]
